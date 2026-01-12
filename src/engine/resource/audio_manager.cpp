@@ -69,7 +69,7 @@ namespace engine::resource {
 
         // 3. 存入缓存
         sounds_.emplace(file_path, std::unique_ptr<MIX_Audio, MixAudioDeleter>(raw_audio));
-        
+        spdlog::debug("成功加载并缓存音效: {}", file_path);
         return raw_audio;
     }
 
@@ -155,23 +155,5 @@ namespace engine::resource {
         clearSounds();
     }
 
-    // --- 音量控制 ---
-
-    //void AudioManager::setMusicVolume(float volume) {
-    //    music_volume_ = std::clamp(volume, 0.0f, 1.0f);
-    //    if (mixer_) {
-    //        // 设置标签为 "music" 的所有轨道的增益
-    //        // 注意：播放音乐的代码必须使用 MIX_PlayTag 或 MIX_TagTrack 将轨道标记为 "music"
-    //        MIX_SetTagGain(mixer_.get(), "music", music_volume_);
-    //    }
-    //}
-
-    //void AudioManager::setSoundVolume(float volume) {
-    //    sound_volume_ = std::clamp(volume, 0.0f, 1.0f);
-    //    if (mixer_) {
-    //        // 设置标签为 "sound" 的所有轨道的增益
-    //        MIX_SetTagGain(mixer_.get(), "sound", sound_volume_);
-    //    }
-    //}
-
+    
 } // namespace engine::resource
