@@ -5,6 +5,7 @@
 #include "../resource/resource_manager.h"
 #include "../render/camera.h"
 #include "../render/renderer.h"
+#include "config.h"
 
 engine::core::GameApp::GameApp() = default;
 
@@ -24,7 +25,7 @@ void engine::core::GameApp::run()
 		spdlog::error("游戏应用程序初始化失败，无法运行！");
 		return;
 	}
-	time_->setTargetFPS(144);
+	time_->setTargetFPS(config_->target_fps_);
 	time_->setTimeScale(1.0);
 	while(is_running_) {
 		time_->update();
@@ -39,7 +40,12 @@ void engine::core::GameApp::run()
 
 bool engine::core::GameApp::init()
 {
-	if (initSDL() && initTime() && initResourceManager()&&initRenderer()&&initCamera()) {
+	if (initConfig() &&
+		initSDL() &&
+		initTime() && 
+		initResourceManager()&&
+		initRenderer()&&
+		initCamera()) {
 		spdlog::info("游戏应用程序初始化成功。");
 		testResourceManager();
 		return true;
@@ -92,6 +98,20 @@ void engine::core::GameApp::close()
 	is_running_ = false;
 }
 
+bool engine::core::GameApp::initConfig()
+{
+	try{
+		config_ = std::make_unique<engine::core::Config>("assets/config.json");
+	}
+	catch (const std::exception& e)
+	{
+		spdlog::error("初始化配置失败: {}", e.what());
+		return false;
+	}
+	spdlog::trace("配置初始化成功。");
+	return true;
+}
+
 bool engine::core::GameApp::initSDL()
 {
 	spdlog::trace("初始化游戏应用程序...");
@@ -100,7 +120,7 @@ bool engine::core::GameApp::initSDL()
 		return false;
 	}
 
-	window_ = SDL_CreateWindow("SunnyLand", 1280, 720, SDL_WINDOW_RESIZABLE);
+	window_ = SDL_CreateWindow(config_->window_title_.c_str(),config_->window_width_, config_->window_height_, SDL_WINDOW_RESIZABLE);
 	if (window_ == nullptr) {
 		spdlog::error("无法创建窗口! SDL错误: {}", SDL_GetError());
 		return false;
@@ -111,7 +131,10 @@ bool engine::core::GameApp::initSDL()
 		spdlog::error("无法创建渲染器! SDL错误: {}", SDL_GetError());
 		return false;
 	}
-	SDL_SetRenderLogicalPresentation(sdl_renderer_, 640, 360, SDL_LOGICAL_PRESENTATION_LETTERBOX);
+	int vsync_mode = config_->vsync_enabled_ ? SDL_RENDERER_VSYNC_ADAPTIVE : SDL_RENDERER_VSYNC_DISABLED;
+	SDL_SetRenderVSync(sdl_renderer_, vsync_mode);
+	
+	SDL_SetRenderLogicalPresentation(sdl_renderer_, config_->window_width_/2, config_->window_height_/2, SDL_LOGICAL_PRESENTATION_LETTERBOX);
 	is_running_ = true;
 	return true;
 }
@@ -155,7 +178,7 @@ bool engine::core::GameApp::initRenderer()
 bool engine::core::GameApp::initCamera()
 {
 	try {
-		camera_ = std::make_unique<engine::render::Camera>( glm::vec2(640.0f, 360.0f));
+		camera_ = std::make_unique<engine::render::Camera>( glm::vec2(config_->window_width_/2, config_->window_height_/2));
 
 	}
 	catch (const std::exception& e) {

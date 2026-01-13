@@ -47,7 +47,9 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/engine/render/camera.cpp" 
                           "src/engine/render/camera.h"
                           "src/engine/render/sprite.h"
-                          "src/engine/utils/math.h")
+                          "src/engine/utils/math.h" 
+                          "src/engine/core/config.h" 
+                          "src/engine/core/config.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}
