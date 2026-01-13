@@ -49,7 +49,9 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/engine/render/sprite.h"
                           "src/engine/utils/math.h" 
                           "src/engine/core/config.h" 
-                          "src/engine/core/config.cpp")
+                          "src/engine/core/config.cpp" 
+                          "src/engine/input/input_manager.h" 
+                          "src/engine/input/input_manager.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}
