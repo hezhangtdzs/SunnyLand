@@ -59,5 +59,6 @@ namespace engine::core {
         void testRenderer();
         void testCamera(float delta_time);
 		void testInputManager();
+        void testGameObject();
     };
 }

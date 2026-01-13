@@ -51,7 +51,10 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/engine/core/config.h" 
                           "src/engine/core/config.cpp" 
                           "src/engine/input/input_manager.h" 
-                          "src/engine/input/input_manager.cpp")
+                          "src/engine/input/input_manager.cpp"
+                          "src/engine/component/component.h"
+                          "src/engine/object/game_object.h"
+                          "src/engine/object/game_object.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}

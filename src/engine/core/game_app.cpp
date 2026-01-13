@@ -7,7 +7,7 @@
 #include "../render/renderer.h"
 #include "config.h"
 #include "../input/input_manager.h"
-
+#include "../object/game_object.h"
 engine::core::GameApp::GameApp() = default;
 
 engine::core::GameApp::~GameApp()
@@ -51,10 +51,13 @@ bool engine::core::GameApp::init()
 		initCamera()) {
 		spdlog::info("游戏应用程序初始化成功。");
 		testResourceManager();
+		testGameObject();
 		return true;
 	}
+
 	spdlog::error("游戏应用程序初始化失败。");
 	return false;
+	
 }
 
 void engine::core::GameApp::handleEvents()
@@ -264,4 +267,9 @@ void engine::core::GameApp::testInputManager()
 			spdlog::info(" {} 按下中 ", action);
 		}
 	}
+}
+void engine::core::GameApp::testGameObject()
+{
+	engine::object::GameObject game_object("test_game_object");
+	game_object.addComponent<engine::component::Component>();
 }
