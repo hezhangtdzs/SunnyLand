@@ -11,7 +11,9 @@
 #include "../component/transform_component.h"
 #include "../component/sprite_component.h"
 #include "context.h"
-engine::object::GameObject game_object("test_game_object");
+#include "../scene/scene_manager.h"
+#include "../../game/scene/game_scene.h"
+
 engine::core::GameApp::GameApp() = default;
 
 engine::core::GameApp::~GameApp()
@@ -53,11 +55,12 @@ bool engine::core::GameApp::init()
 		initResourceManager()&&
 		initRenderer()&&
 		initCamera()&&
-		initContext()) 
+		initContext()&&
+		initSceneManager()) 
 	{
 		spdlog::info("游戏应用程序初始化成功。");
-		testResourceManager();
-		testGameObject();
+		auto scene = std::make_unique<game::scene::GameScene>("GameScene", *context_, *scene_manager_);
+		scene_manager_->requestPushScene(std::move(scene));
 		return true;
 	}
 
@@ -73,13 +76,14 @@ void engine::core::GameApp::handleEvents()
 		is_running_ = false;
 		return;
 	}
-	testInputManager();
+
 }
 
 void engine::core::GameApp::update(float& delta_time)
 {
-	// 游戏逻辑更新
-	testCamera(delta_time);
+	if (scene_manager_) {
+		scene_manager_->update(delta_time);
+	}
 }
 
 void engine::core::GameApp::render()
@@ -88,8 +92,9 @@ void engine::core::GameApp::render()
 	renderer_->clearScreen();
 
 	// 2. 具体渲染代码
-	testRenderer();
-	game_object.render(*context_);
+	if (scene_manager_) {
+		scene_manager_->render();
+	}
 
 	// 3. 更新屏幕显示
 	renderer_->present();
@@ -227,87 +232,14 @@ bool engine::core::GameApp::initContext()
 	}
 	return true;
 }
-void engine::core::GameApp::testResourceManager()
+bool engine::core::GameApp::initSceneManager()
 {
-	resource_manager_->getTexture("assets/textures/Actors/eagle-attack.png");
-	resource_manager_->getFont("assets/fonts/VonwaonBitmap-16px.ttf", 16);
-	resource_manager_->getSound("assets/audio/button_click.wav");
-
-	resource_manager_->unloadTexture("assets/textures/Actors/eagle-attack.png");
-	resource_manager_->unloadFont("assets/fonts/VonwaonBitmap-16px.ttf", 16);
-	resource_manager_->unloadSound("assets/audio/button_click.wav");
-}
-
-void engine::core::GameApp::testRenderer()
-{
-	engine::render::Sprite sprite_world("assets/textures/Actors/frog.png");
-	engine::render::Sprite sprite_ui("assets/textures/UI/buttons/Start1.png");
-	engine::render::Sprite sprite_parallax("assets/textures/Layers/back.png");
-
-	static float rotation = 0.0f;
-	rotation += 0.1f;
-
-	// 注意渲染顺序
-	renderer_->drawParallax(*camera_, sprite_parallax, glm::vec2(100, 100), glm::vec2(0.5f, 0.5f), glm::bvec2(true, false));
-	renderer_->drawSprite(*camera_, sprite_world, glm::vec2(200, 200), glm::vec2(1.0f, 1.0f), rotation);
-	renderer_->drawUISprite(sprite_ui, glm::vec2(100, 100));
-
-}
-
-void engine::core::GameApp::testCamera(float delta_time)
-{
-	const float speed = 200.0f; // pixels per second
-	auto key_state = SDL_GetKeyboardState(nullptr);
-	if (key_state[SDL_SCANCODE_UP]) camera_->move(glm::vec2(0, -1) * speed * delta_time);
-	if (key_state[SDL_SCANCODE_DOWN]) camera_->move(glm::vec2(0, 1) * speed * delta_time);
-	if (key_state[SDL_SCANCODE_LEFT]) camera_->move(glm::vec2(-1, 0) * speed * delta_time);
-	if (key_state[SDL_SCANCODE_RIGHT]) camera_->move(glm::vec2(1, 0) * speed * delta_time);
-}
-
-void engine::core::GameApp::testInputManager()
-{
-	std::vector<std::string> actions = {
-		"move_up",
-		"move_down",
-		"move_left",
-		"move_right",
-		"jump",
-		"attack",
-		"pause",
-		"MouseLeftClick",
-		"MouseRightClick"
-	};
-
-	for (const auto& action : actions) {
-		if (input_manager_->isActionPressed(action)) {
-			spdlog::info(" {} 按下 ", action);
-		}
-		if (input_manager_->isActionReleased(action)) {
-			spdlog::info(" {} 抬起 ", action);
-		}
-		if (input_manager_->isActionDown(action)) {
-			spdlog::info(" {} 按下中 ", action);
-		}
+	try {
+		scene_manager_ = std::make_unique<engine::scene::SceneManager>(*context_);
 	}
-}
-
-void engine::core::GameApp::testGameObject() {
-	spdlog::info("========== 测试组件系统 ==========");
-
-	// 1. 添加 TransformComponent，让对象出现在 (100, 100)
-	game_object.addComponent<engine::component::TransformComponent>(
-		glm::vec2(100.0f, 100.0f)
-	);
-
-	// 2. 添加 SpriteComponent，显示箱子贴图，设置渲染中心为图片的几何中心
-	game_object.addComponent<engine::component::SpriteComponent>(
-		"assets/textures/Props/big-crate.png",
-		*resource_manager_,
-		engine::utils::Alignment::CENTER
-	);
-
-	// 3. 获取 TransformComponent，修改缩放和旋转
-	game_object.getComponent<engine::component::TransformComponent>()->setScale(glm::vec2(2.0f, 2.0f));  // 放大 2 倍
-	game_object.getComponent<engine::component::TransformComponent>()->setRotation(30.0f);                // 旋转 30 度
-	spdlog::info("✓ Transform 组件配置完成");
+	catch (const std::exception& e) {
+		spdlog::error("初始化场景管理器失败: {}", e.what());
+		return false;
+	}
+	return true;
 }

@@ -62,10 +62,10 @@ namespace engine::object
 		/** 
 		 * @brief 标记该对象为待移除。
 		 */
-		bool setNeedRemove() { need_remove_ = true; return true; }
+		void setNeedRemove(bool need_remove) { need_remove_ = need_remove; }
 		
 		/** @brief 检查对象是否已被标记为移除 */
-		bool getIsNeedRemove() const { return need_remove_; }
+		bool getNeedRemove() const { return need_remove_; }
 
 		/**
 		 * @brief 为游戏对象动态添加组件。

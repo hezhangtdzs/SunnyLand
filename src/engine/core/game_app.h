@@ -15,7 +15,10 @@ namespace engine::render {
 namespace engine::input {
     class InputManager;
 }   
-
+namespace engine::scene
+{
+	class SceneManager;
+}
 namespace engine::core {
     class Time;
 	class Config;
@@ -33,6 +36,7 @@ namespace engine::core {
 		std::unique_ptr<engine::core::Config> config_;
 		std::unique_ptr<engine::input::InputManager> input_manager_;
 		std::unique_ptr<engine::core::Context> context_;
+		std::unique_ptr<engine::scene::SceneManager> scene_manager_;
 
     public:
         GameApp();
@@ -59,11 +63,6 @@ namespace engine::core {
         [[nodiscard]] bool initCamera();
 		[[nodiscard]] bool initInputManager();
 		[[nodiscard]] bool initContext();
-        
-		void testResourceManager();
-        void testRenderer();
-        void testCamera(float delta_time);
-		void testInputManager();
-        void testGameObject();
+		[[nodiscard]] bool initSceneManager();
     };
 }

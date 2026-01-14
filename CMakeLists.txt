@@ -61,7 +61,11 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/engine/component/transform_component.h" 
                           "src/engine/component/transform_component.cpp" 
                           "src/engine/component/sprite_component.h"
-                          "src/engine/component/sprite_component.cpp")
+                          "src/engine/component/sprite_component.cpp" 
+                          "src/engine/scene/scene.h"
+                          "src/engine/scene/scene.cpp"
+                          "src/engine/scene/scene_manager.h"
+                          "src/engine/scene/scene_manager.cpp" "src/game/scene/game_scene.h" "src/game/scene/game_scene.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}
