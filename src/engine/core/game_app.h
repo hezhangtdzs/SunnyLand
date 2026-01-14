@@ -19,17 +19,21 @@ namespace engine::input {
 namespace engine::core {
     class Time;
 	class Config;
+	class Context;
     class GameApp final{
     private:
         bool is_running_{false};
         SDL_Renderer* sdl_renderer_{nullptr};
         SDL_Window* window_{nullptr};
+
         std::unique_ptr<engine::core::Time> time_;
         std::unique_ptr<engine::resource::ResourceManager> resource_manager_;
 		std::unique_ptr<engine::render::Renderer> renderer_;
 		std::unique_ptr<engine::render::Camera> camera_;
 		std::unique_ptr<engine::core::Config> config_;
 		std::unique_ptr<engine::input::InputManager> input_manager_;
+		std::unique_ptr<engine::core::Context> context_;
+
     public:
         GameApp();
         ~GameApp();
@@ -54,6 +58,7 @@ namespace engine::core {
         [[nodiscard]] bool initRenderer();
         [[nodiscard]] bool initCamera();
 		[[nodiscard]] bool initInputManager();
+		[[nodiscard]] bool initContext();
         
 		void testResourceManager();
         void testRenderer();

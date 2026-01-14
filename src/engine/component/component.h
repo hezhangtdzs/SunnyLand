@@ -1,5 +1,9 @@
 #pragma once
 
+namespace engine::core
+{
+	class Context;
+}
 // 前向声明，避免循环包含
 namespace engine::object {
 	class GameObject;
@@ -52,18 +56,18 @@ namespace engine::component {
 		/**
 		 * @brief 处理输入事件。每帧由所属对象调用。
 		 */
-		virtual void handleInput() {}
+		virtual void handleInput(engine::core::Context& /*context*/) {}
 
 		/**
 		 * @brief 更新组件逻辑。
 		 * @param deltaTime 自上一帧以来的时间间隔（秒）。
 		 */
-		virtual void update(float /*deltaTime*/) {}
+		virtual void update(float /*deltaTime*/, engine::core::Context& /*context*/) {}
 
 		/**
 		 * @brief 渲染组件内容。每帧在更新之后由渲染管线调用。
 		 */
-		virtual void render() {}
+		virtual void render(engine::core::Context& /*context*/) {}
 
 		/**
 		 * @brief 组件清理。在组件销毁或移除时被调用，用于释放特定资源。

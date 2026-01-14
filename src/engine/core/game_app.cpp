@@ -8,6 +8,10 @@
 #include "config.h"
 #include "../input/input_manager.h"
 #include "../object/game_object.h"
+#include "../component/transform_component.h"
+#include "../component/sprite_component.h"
+#include "context.h"
+engine::object::GameObject game_object("test_game_object");
 engine::core::GameApp::GameApp() = default;
 
 engine::core::GameApp::~GameApp()
@@ -48,7 +52,9 @@ bool engine::core::GameApp::init()
 		initTime() && 
 		initResourceManager()&&
 		initRenderer()&&
-		initCamera()) {
+		initCamera()&&
+		initContext()) 
+	{
 		spdlog::info("游戏应用程序初始化成功。");
 		testResourceManager();
 		testGameObject();
@@ -83,6 +89,7 @@ void engine::core::GameApp::render()
 
 	// 2. 具体渲染代码
 	testRenderer();
+	game_object.render(*context_);
 
 	// 3. 更新屏幕显示
 	renderer_->present();
@@ -205,6 +212,21 @@ bool engine::core::GameApp::initInputManager()
 	}
 	return true;
 }
+bool engine::core::GameApp::initContext()
+{
+	try {
+		context_= std::make_unique<engine::core::Context>(
+			*renderer_,
+			*camera_,
+			*resource_manager_,
+			*input_manager_);
+	}
+	catch (const std::exception& e) {
+		spdlog::error("初始化上下文失败: {}", e.what());
+		return false;
+	}
+	return true;
+}
 void engine::core::GameApp::testResourceManager()
 {
 	resource_manager_->getTexture("assets/textures/Actors/eagle-attack.png");
@@ -268,8 +290,24 @@ void engine::core::GameApp::testInputManager()
 		}
 	}
 }
-void engine::core::GameApp::testGameObject()
-{
-	engine::object::GameObject game_object("test_game_object");
-	game_object.addComponent<engine::component::Component>();
+
+void engine::core::GameApp::testGameObject() {
+	spdlog::info("========== 测试组件系统 ==========");
+
+	// 1. 添加 TransformComponent，让对象出现在 (100, 100)
+	game_object.addComponent<engine::component::TransformComponent>(
+		glm::vec2(100.0f, 100.0f)
+	);
+
+	// 2. 添加 SpriteComponent，显示箱子贴图，设置渲染中心为图片的几何中心
+	game_object.addComponent<engine::component::SpriteComponent>(
+		"assets/textures/Props/big-crate.png",
+		*resource_manager_,
+		engine::utils::Alignment::CENTER
+	);
+
+	// 3. 获取 TransformComponent，修改缩放和旋转
+	game_object.getComponent<engine::component::TransformComponent>()->setScale(glm::vec2(2.0f, 2.0f));  // 放大 2 倍
+	game_object.getComponent<engine::component::TransformComponent>()->setRotation(30.0f);                // 旋转 30 度
+	spdlog::info("✓ Transform 组件配置完成");
 }

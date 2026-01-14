@@ -47,14 +47,21 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/engine/render/camera.cpp" 
                           "src/engine/render/camera.h"
                           "src/engine/render/sprite.h"
-                          "src/engine/utils/math.h" 
+                          "src/engine/utils/math.h"
+                          "src/engine/utils/alignment.h"
                           "src/engine/core/config.h" 
                           "src/engine/core/config.cpp" 
                           "src/engine/input/input_manager.h" 
                           "src/engine/input/input_manager.cpp"
                           "src/engine/component/component.h"
                           "src/engine/object/game_object.h"
-                          "src/engine/object/game_object.cpp")
+                          "src/engine/object/game_object.cpp" 
+                          "src/engine/core/context.h" 
+                          "src/engine/core/context.cpp" 
+                          "src/engine/component/transform_component.h" 
+                          "src/engine/component/transform_component.cpp" 
+                          "src/engine/component/sprite_component.h"
+                          "src/engine/component/sprite_component.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}

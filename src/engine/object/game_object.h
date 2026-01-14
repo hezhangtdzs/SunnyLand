@@ -7,6 +7,10 @@
 #include <spdlog/spdlog.h>
 #include "../component/component.h" // 必须包含定义以支持模板方法中的 is_base_of 和函数调用
 
+namespace engine::core
+{
+	class Context;
+}
 namespace engine::object
 {
 	/**
@@ -39,13 +43,21 @@ namespace engine::object
 		GameObject& operator=(GameObject&&) = delete;
 
 		/** @brief 获取对象名称 */
-		const std::string& getName() const;
+		const std::string& getName() const {
+			return name_;
+		}
 		/** @brief 设置对象名称 */
-		void setName(const std::string& name);
+		void setName(const std::string& name) {
+			name_ = name;
+		}
 		/** @brief 获取对象标签 */
-		const std::string& getTag() const;
+		const std::string& getTag() const {
+			return tag_;
+		}
 		/** @brief 设置对象标签 */
-		void setTag(const std::string& tag);
+		void setTag(const std::string& tag) {
+			tag_ = tag;
+		}
 		
 		/** 
 		 * @brief 标记该对象为待移除。
@@ -111,16 +123,16 @@ namespace engine::object
 			}
 		}
 
-	private:
+	public:
 		/** @brief 更新循环：处理所有组件的输入逻辑 */
-		void handleInput();
+		void handleInput(engine::core::Context& context);
 		/** 
 		 * @brief 更新循环：处理所有组件的每帧逻辑。
 		 * @param delta_time 自上一帧以来的经过时间（秒）。
 		 */
-		void update(float delta_time);
+		void update(float delta_time, engine::core::Context& context);
 		/** @brief 更新循环：渲染所有相关的组件内容 */
-		void render();
+		void render(engine::core::Context& context);
 		/** @brief 清理函数，在对象销毁或准备重置时调用 */
 		void clean();
 	};
