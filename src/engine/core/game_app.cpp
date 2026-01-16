@@ -77,6 +77,10 @@ void engine::core::GameApp::handleEvents()
 		return;
 	}
 
+	// 修复：将输入事件分发给场景管理器
+	if (scene_manager_) {
+		scene_manager_->handleInput();
+	}
 }
 
 void engine::core::GameApp::update(float& delta_time)

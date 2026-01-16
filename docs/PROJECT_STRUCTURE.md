@@ -6,118 +6,201 @@
 classDiagram
     class GameApp {
         -is_running_ : bool
-        -window_ : SDL_Window*
+        -scene_manager_ : unique_ptr<SceneManager>
         -renderer_ : unique_ptr<Renderer>
-        -resource_manager_ : unique_ptr<ResourceManager>
-        -input_manager_ : unique_ptr<InputManager>
-        -time_ : unique_ptr<Time>
         +run()
         +init()
-        -handleEvents()
-        -update(float delta_time)
-        -render()
+    }
+
+    class SceneManager {
+        -scene_stack_ : vector<unique_ptr<Scene>>
+        -pending_action_ : enum
+        +requestPushScene(unique_ptr<Scene>)
+        +update(dt)
+        +render()
+    }
+
+    class Scene {
+        <<abstract>>
+        -game_objects_ : vector<unique_ptr<GameObject>>
+        -pending_game_objects_ : vector<unique_ptr<GameObject>>
+        +init()*
+        +update(dt)
+        +render()
+        +safeAddGameObject(unique_ptr<GameObject>)
+    }
+
+    class LevelLoader {
+        -map_path_ : string
+        +loadLevel(string, Scene&)
+        -loadImageLayer(...)
     }
 
     class GameObject {
-        -name_ : string
         -components_ : map<type_index, unique_ptr<Component>>
         +addComponent<T>()
-        +getComponent<T>()
-        +update(float delta_time, Context& context)
-        +render(Context& context)
+        +update(dt, Context&)
+        +render(Context&)
     }
 
     class Component {
         <<interface>>
         #owner_ : GameObject*
         +init()*
-        +update(float dt, Context& ctx)*
-        +render(Context& ctx)*
+        +update(dt, Context&)*
+        +render(Context&)*
     }
 
     class TransformComponent {
         -position_ : vec2
-        -rotation_ : float
         -scale_ : vec2
-        +setPosition(vec2)
-        +getScale()
     }
 
     class SpriteComponent {
         -sprite_ : Sprite
         -offset_ : vec2
-        -alignment_ : Alignment
-        +init()
-        +updateOffset()
-        +render(Context& ctx)
+    }
+
+    class ParallaxComponent {
+        -parallax_factor_ : vec2
+        -repeat_ : bvec2
+        -sprite_ : Sprite
+        +render()
     }
 
     class Context {
+        <<System Bundle>>
         -renderer_ : Renderer&
         -camera_ : Camera&
         -resource_manager_ : ResourceManager&
         -input_manager_ : InputManager&
     }
 
-    class Renderer {
-        +drawSprite(Camera&, Sprite&, ...)
-        +clearScreen()
-        +present()
+    class InputManager {
+        +Update()
+        +isActionPressed(string)
+        +isActionDown(string)
     }
 
-    class ResourceManager {
-        +getTexture(string)
-        +getFont(string)
+    class Camera {
+        -position_ : vec2
+        +move(vec2)
     }
 
-    Component <|-- TransformComponent : 继承 (Inherit)
-    Component <|-- SpriteComponent : 继承 (Inherit)
-    GameObject "1" *-- "many" Component : 包含 (Contains)
-    GameApp "1" *-- "many" GameObject : 逻辑持有
-    GameApp "1" *-- "1" Renderer : 拥有
-    GameApp "1" *-- "1" ResourceManager : 拥有
-    GameApp "1" *-- "1" InputManager : 拥有
-    GameApp "1" *-- "1" Time : 拥有
-    SpriteComponent ..> TransformComponent : 依赖位置与缩放
-    SpriteComponent ..> Context : 使用系统资源访问
+    GameApp "1" *-- "1" SceneManager
+    GameApp "1" *-- "1" Renderer
+    GameApp "1" *-- "1" InputManager
+    GameApp "1" *-- "1" Camera
+    SceneManager "1" o-- "many" Scene
+    Scene "1" *-- "many" GameObject
+    Scene ..> LevelLoader : 使用加载器构建场景
+
+    GameObject "1" *-- "many" Component
+    Component <|-- TransformComponent
+    Component <|-- SpriteComponent
+    Component <|-- ParallaxComponent
+    SpriteComponent ..> TransformComponent : 依赖位置
+    ParallaxComponent ..> TransformComponent : 依赖位置
+    Scene ..> Context : 系统资源访问
 ```
 
 ## 主循环调用流程 (Main Loop Sequence)
 
 ```mermaid
 sequenceDiagram
-    participant Main as main.cpp
     participant App as GameApp
-    participant Time as Time
-    participant Input as InputManager
+    participant SM as SceneManager
+    participant Scene as Scene (e.g. GameScene)
     participant GO as GameObject
     participant Comp as Component
-    participant Scene as Renderer/Camera
 
-    Main->>App: run()
-    App->>App: init() (初始化SDL, 渲染器, 资源等)
-    
-    loop 游戏主循环 (while is_running_)
-        App->>Time: update() (计算 delta_time)
-        App->>Input: Update() (处理键盘/鼠标状态)
-        App->>App: handleEvents() (处理退出等事件)
-        
-        App->>App: update(delta_time)
-        Note right of App: 逻辑更新阶段
-        App->>GO: update(delta_time, context)
-        GO->>Comp: update(delta_time, context)
-        
+    loop 每一帧 (Each Frame)
+        App->>SM: update(dt)
+        SM->>Scene: update(dt)
+        loop 每个对象
+            Scene->>GO: update(dt, context)
+            GO->>Comp: update(dt, context)
+        end
+        SM->>SM: processPendingActions() (延迟场景切换)
+
         App->>App: render()
-        Note right of App: 渲染阶段
-        App->>Scene: clearScreen()
-        App->>GO: render(context)
-        GO->>Comp: render(context)
-        Comp->>Scene: drawSprite(...)
-        App->>Scene: present() (显示图像)
+        App->>SM: render()
+        SM->>Scene: render()
+        loop 每个对象
+            Scene->>GO: render(context)
+            GO->>Comp: render(context)
+        end
     end
-    
-    App->>App: close() (清理资源)
 ```
+
+## 目录结构 (Directory Structure)
+
+```text
+src/
+├── engine/             # 引擎核心
+│   ├── core/           # 基础框架 (App, Context, Time, Config)
+│   ├── scene/          # 场景管理 (Scene, SceneManager, LevelLoader)
+│   ├── object/         # 游戏实体 (GameObject)
+│   ├── component/      # 组件系统 (Transform, Sprite, Parallax)
+│   ├── render/         # 渲染基础 (Renderer, Camera, Sprite)
+│   ├── resource/       # 资源管理 (Texture, Font, Sound)
+│   ├── input/          # 输入系统 (InputManager)
+│   └── utils/          # 工具类 (Alignment, Math)
+└── game/               # 游戏业务逻辑
+    └── scene/          # 具体场景实现 (GameScene)
+```
+
+## 关键机制说明 (Key Mechanisms)
+
+### 1. 场景管理 (Scene Management)
+- **栈式管理**: 支持 `Push` (叠加场景，如暂停菜单) 和 `Replace` (切换场景，如转场)。
+- **延迟操作**: 通过 `PendingAction` 确保在帧末尾进行场景切换，避免在更新循环中由于内存释放导致的悬空指针。
+
+### 2. 安全的对象添加/移除 (Safe Object Management)
+- **safeAddGameObject**: 将对象加入 `pending_game_objects_`。
+- **safeRemoveGameObject**: 标记对象为 `need_remove_`。
+- 所有操作通过 `processPendingGameObjects` 在帧末尾统一处理，确保遍历容器时的迭代器安全性。
+
+### 3. 精灵对齐与变换 (Sprite & Transform)
+- `SpriteComponent` 会监听 `TransformComponent` 的缩放变化。
+- **对齐方式 (Alignment)**: 支持 `CENTER`, `TOP_LEFT` 等，通过 `offset_` 实现局部偏移。
+
+### 4. 资源共享机制 (Resource Management)
+- **ResourceManager**: 内部持有 `TextureManager`, `FontManager`, `AudioManager`。
+- **自动引用计数**: 同一个路径的资源只会被加载一次，通过 `std::shared_ptr` 管理贴图等重型资源的生命周期。
+
+### 5. 动作映射系统 (Input Mapping)
+- 键盘按键不直接对应逻辑，而是映射为 **Actions** (如 `"move_left"`, `"jump"`)。
+- 在 `assets/config.json` 中配置按键绑定。
+
+### 6. 关卡加载 (Level Loading)
+- **从 Tiled 导入**: 使用 `LevelLoader` 解析 Tiled 编辑器导出的 JSON 格式 (`.tmj`) 地图。
+- **图层解析**: 支持解析 `Image Layer`（转换为 `ParallaxComponent`），未来支持 `Tile Layer` 和 `Object Group`。
+- **路径解析**: 自动处理相对路径，确保纹理资源正确加载。
+
+### 7. 视差滚动 (Parallax Scrolling)
+- **ParallaxComponent**: 专门负责渲染背景图层的组件。
+- **视差因子 (Factor)**: 通过 `parallax_factor_` 控制背景随相机移动的速度（例如 `0.2` 表示背景移动速度是相机的 0.2 倍，产生远景效果）。
+- **Offset 支持**: 正确处理 Tiled 中的 `offsetx/offsety` 偏移量。
+
+---
+
+## 开发规范 (Development Guidelines)
+
+### 1. 创建新场景
+- 继承 `engine::scene::Scene`。
+- 在 `init()` 中使用 `createGameObject` 或 `std::make_unique` 构建初始化实体。
+- 通过 `scene_manager_.requestReplaceScene()` 实现场景跳转。
+
+### 2. 创建新组件
+- 继承 `engine::component::Component`。
+- 逻辑代码写在 `update()` 中，渲染代码写在 `render()` 中。
+- 获取同对象的其他组件请使用 `owner_->getComponent<T>()`。
+
+### 3. 性能优化
+- **避免在每帧 `update` 中分配内存**: 尽量复用对象。
+- **批量渲染**: 相同纹理的对象尽量连续渲染（后续计划）。
+- **资源预加载**: 在 `Scene::init()` 中一次性加载场景所需资源。
 
 ## 关键系统说明 (Key System Descriptions)
 
@@ -125,21 +208,19 @@ sequenceDiagram
 | :--- | :--- | :--- |
 | **GameApp** | 引擎入口，管理生命周期。 | `run()`, `init()`, `close()` |
 | **GameObject** | 游戏实体，通过组合不同的组件来实现特定功能。 | `addComponent()`, `update()`, `render()` |
+| **LevelLoader** | **关卡加载器**，负责解析 Tiled JSON 地图并实例化游戏对象。 | `loadLevel()`, `loadImageLayer()` |
 | **Component** | 组件基类，定义了游戏逻辑和渲染的统一接口。 | `init()`, `update()`, `render()` |
 | **TransformComponent** | **最基础组件**，管理对象的位置、旋转、缩放。 | `getPosition()`, `setScale()` |
 | **SpriteComponent** | 渲染组件，负责根据 Transform 的信息绘制图片。 | `render()`, `updateOffset()` |
+| **ParallaxComponent** | **视差组件**，用于渲染具有视差效果的背景层。 | `render()`, `getParallaxFactor()` |
 | **Renderer** | 绘图核心，封装对 SDL 渲染 API 的底层调用。 | `drawSprite()`, `clearScreen()` |
 | **ResourceManager**| 资源管家，负责图片、字体、声音的加载与缓存。 | `getTexture()`, `getFont()` |
-| **InputManager** | 输入核心，将按键/点击映射为抽象的游戏动作。 | `Update()`, `isActionPressed()` |
-| **Context** | 系统容器，将各种全局系统引用传递给组件层。 | - |
 
 ---
+*此文档为项目架构的唯一权威说明。*
 
-## 精灵与变换的关系 (Relation: Sprite & Transform)
 
-1.  **位置绑定**: `SpriteComponent::render` 执行时，会从所属的 `GameObject` 中获取 `TransformComponent` 的位置。
-2.  **坐标转换**: 最终屏幕坐标 = `Transform.Position + Sprite.Offset`。
-3.  **自动缩放**: `Transform` 的 `scale` 发生变化时，`SpriteComponent` 会自动重新计算 `offset` 以保持对齐。
-4.  **初始化**: `SpriteComponent::init` 时会缓存 `Transform` 的指针，确保高效访问。
+
+
 
 
