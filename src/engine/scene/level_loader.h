@@ -1,47 +1,65 @@
 #pragma once
-#include<nlohmann/json_fwd.hpp>
-#include<string>
+#include <string>
+#include <glm/vec2.hpp>
+#include <nlohmann/json.hpp>
+#include <map>
+
+namespace engine::component {
+    struct TileInfo;
+}
+
 namespace engine::scene {
-	class Scene;
-	/**
-	 * @class LevelLoader
-	 * @brief 关卡加载器，负责从外部文件加载和解析游戏关卡。
-	 * 
-	 * 该类目前主要支持解析 Tiled 编辑器导出的 JSON 格式 (.tmj) 地图文件。
-	 * 它会自动遍历地图中的所有图层，并根据图层类型（如图像层）创建对应的 GameObject 和组件。
-	 */
-	class LevelLoader final {
-		std::string map_path_; ///< 当前正在加载的地图文件的完整路径，用于解析相对资源路径
-	public:
-		/**
-		 * @brief 默认构造函数
-		 */
-		LevelLoader() = default;
+    class Scene;
 
-		/**
-		 * @brief 从指定路径加载关卡。
-		 * 
-		 * @param level_path 关卡文件 (.tmj) 的路径
-		 * @param scene 目标场景引用，解析出的对象将被添加到该场景中
-		 * @return 是否成功加载
-		 */
-		bool loadLevel(const std::string& level_path, Scene& scene);
+    /**
+     * @brief 负责从 Tiled JSON 文件 (.tmj) 加载关卡数据到 Scene 中。
+     */
+    class LevelLoader final {
+        std::string map_path_;      ///< @brief 地图路径（拼接路径时需要）
+        glm::ivec2 map_size_;       ///< @brief 地图尺寸(瓦片数量)
+        glm::ivec2 tile_size_;      ///< @brief 瓦片尺寸(像素)
+        std::map<int, nlohmann::json> tileset_data_;    ///< @brief firstgid -> 瓦片集数据
 
-	private:
-		/** @brief 加载图像图层 (Image Layer) */
-		void loadImageLayer(const nlohmann::json& layer_json, Scene& scene);
-		/** @brief 加载瓦片图层 (Tile Layer) */
-		void loadTileLayer(const nlohmann::json& layer_json, Scene& scene);
-		/** @brief 加载对象图层 (Object Group) */
-		void loadObjectLayer(const nlohmann::json& layer_json, Scene& scene);
+    public:
+        LevelLoader() = default;
 
-		/**
-		 * @brief 将地图文件中的相对路径解析为标准绝对路径。
-		 * 
-		 * @param image_path 原始相对路径
-		 * @return 解析后的路径字符串
-		 */
-		std::string resolvePath(std::string image_path);
+        /**
+         * @brief 加载关卡数据到指定的 Scene 对象中。
+         * @param map_path Tiled JSON 地图文件的路径。
+         * @param scene 要加载数据的目标 Scene 对象。
+         * @return bool 是否加载成功。
+         */
+        bool loadLevel(const std::string& map_path, Scene& scene);
 
-	};
-}  // namespace engine::scene
+    private:
+        void loadImageLayer(const nlohmann::json& layer_json, Scene& scene);    ///< @brief 加载图片图层
+        void loadTileLayer(const nlohmann::json& layer_json, Scene& scene);     ///< @brief 加载瓦片图层
+        void loadObjectLayer(const nlohmann::json& layer_json, Scene& scene);   ///< @brief 加载对象图层
+
+        /**
+         * @brief 根据全局 ID 获取瓦片信息。
+         * @param gid 全局 ID。
+         * @return engine::component::TileInfo 瓦片信息。
+         */
+        engine::component::TileInfo getTileInfoByGid(int gid);
+
+        /**
+         * @brief 加载 Tiled tileset 文件 (.tsj)。
+         * @param tileset_path Tileset 文件路径。
+         * @param first_gid 此 tileset 的第一个全局 ID。
+         */
+        void loadTileset(const std::string& tileset_path, int first_gid);
+
+        /**
+         * @brief 解析图片路径，合并地图路径和相对路径。例如：
+         * 1. 文件路径："assets/maps/level1.tmj"
+         * 2. 相对路径："../textures/Layers/back.png"
+         * 3. 最终路径："assets/textures/Layers/back.png"
+         * @param relative_path 相对路径（相对于文件）
+         * @param file_path 文件路径
+         * @return std::string 解析后的完整路径。
+         */
+        std::string resolvePath(const std::string& relative_path, const std::string& file_path);
+    };
+
+} // namespace engine::scene

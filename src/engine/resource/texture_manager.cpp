@@ -15,12 +15,18 @@ SDL_Texture* engine::resource::TextureManager::loadTexture(const std::string& fi
         return it->second.get();
     }
 
+
     // 如果没加载则尝试加载纹理
     SDL_Texture* raw_texture = IMG_LoadTexture(renderer_, file_path.c_str());
 
     if (!raw_texture) {
         spdlog::error("加载纹理失败: '{}': {}", file_path, SDL_GetError());
         return nullptr;
+    }
+    if (raw_texture) {
+        if (!SDL_SetTextureScaleMode(raw_texture, SDL_SCALEMODE_NEAREST)) {
+            spdlog::warn("无法设置纹理缩放模式为最邻近插值");
+        }
     }
 
     // 使用带有自定义删除器的 unique_ptr 存储加载的纹理

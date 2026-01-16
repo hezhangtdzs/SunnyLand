@@ -21,6 +21,7 @@ namespace engine::render {
 		bool is_flipped_{ false };
 
 	public:
+		Sprite() = default;
 		/**
 		 * @brief 构造一个新的 Sprite 对象。
 		 * @param texture_id 纹理的标识符。

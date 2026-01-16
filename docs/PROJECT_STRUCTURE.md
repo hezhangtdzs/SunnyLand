@@ -34,6 +34,8 @@ classDiagram
         -map_path_ : string
         +loadLevel(string, Scene&)
         -loadImageLayer(...)
+        -loadTileLayer(...)
+        -loadTileset(...)
     }
 
     class GameObject {
@@ -49,6 +51,13 @@ classDiagram
         +init()*
         +update(dt, Context&)*
         +render(Context&)*
+    }
+
+    class TileLayerComponent {
+        -tile_size_ : ivec2
+        -map_size_ : ivec2
+        -tiles_ : vector<TileInfo>
+        +render(Context&)
     }
 
     class TransformComponent {
@@ -99,6 +108,7 @@ classDiagram
     Component <|-- TransformComponent
     Component <|-- SpriteComponent
     Component <|-- ParallaxComponent
+    Component <|-- TileLayerComponent
     SpriteComponent ..> TransformComponent : 依赖位置
     ParallaxComponent ..> TransformComponent : 依赖位置
     Scene ..> Context : 系统资源访问
@@ -141,7 +151,7 @@ src/
 │   ├── core/           # 基础框架 (App, Context, Time, Config)
 │   ├── scene/          # 场景管理 (Scene, SceneManager, LevelLoader)
 │   ├── object/         # 游戏实体 (GameObject)
-│   ├── component/      # 组件系统 (Transform, Sprite, Parallax)
+│   ├── component/      # 组件系统 (Transform, Sprite, Parallax, TileLayer)
 │   ├── render/         # 渲染基础 (Renderer, Camera, Sprite)
 │   ├── resource/       # 资源管理 (Texture, Font, Sound)
 │   ├── input/          # 输入系统 (InputManager)
@@ -175,7 +185,10 @@ src/
 
 ### 6. 关卡加载 (Level Loading)
 - **从 Tiled 导入**: 使用 `LevelLoader` 解析 Tiled 编辑器导出的 JSON 格式 (`.tmj`) 地图。
-- **图层解析**: 支持解析 `Image Layer`（转换为 `ParallaxComponent`），未来支持 `Tile Layer` 和 `Object Group`。
+- **图块集支持**: 支持解析外部Tileset (`.tsj`)，包括大图 (`Image Collection`) 和单图集 (`Image`) 模式。
+- **图层解析**: 
+    - `Image Layer` -> `ParallaxComponent` (支持部分滚动因子，用于远景)。
+    - `Tile Layer` -> `TileLayerComponent` (支持剔除渲染与对齐修正)。
 - **路径解析**: 自动处理相对路径，确保纹理资源正确加载。
 
 ### 7. 视差滚动 (Parallax Scrolling)
@@ -213,11 +226,15 @@ src/
 | **TransformComponent** | **最基础组件**，管理对象的位置、旋转、缩放。 | `getPosition()`, `setScale()` |
 | **SpriteComponent** | 渲染组件，负责根据 Transform 的信息绘制图片。 | `render()`, `updateOffset()` |
 | **ParallaxComponent** | **视差组件**，用于渲染具有视差效果的背景层。 | `render()`, `getParallaxFactor()` |
+| **TileLayerComponent** | **瓦片图层组件**，高效渲染由大量瓦片构成的地图层。 | `render()`, `getTileAt()` |
 | **Renderer** | 绘图核心，封装对 SDL 渲染 API 的底层调用。 | `drawSprite()`, `clearScreen()` |
 | **ResourceManager**| 资源管家，负责图片、字体、声音的加载与缓存。 | `getTexture()`, `getFont()` |
 
 ---
 *此文档为项目架构的唯一权威说明。*
+
+
+
 
 
 
