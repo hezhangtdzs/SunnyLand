@@ -77,7 +77,12 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/engine/physics/physics_engine.h" 
                           "src/engine/physics/physics_engine.cpp" 
                           "src/engine/component/physics_component.h" 
-                          "src/engine/component/physics_component.cpp")
+                          "src/engine/component/physics_component.cpp" 
+                          "src/engine/physics/collider.h"
+                          "src/engine/component/collider_component.h"
+                          "src/engine/component/collider_component.cpp"
+                          "src/engine/physics/collision.h"
+                          "src/engine/physics/collision.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}

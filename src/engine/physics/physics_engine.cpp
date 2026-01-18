@@ -2,6 +2,9 @@
 #include <spdlog/spdlog.h>
 #include "../component/physics_component.h"
 #include "../component/transform_component.h"
+#include "../component/collider_component.h"
+#include "collision.h"
+#include "../object/game_object.h"
 #include <glm/glm.hpp>
 #include <algorithm>
 #include <cmath>
@@ -19,6 +22,7 @@ void engine::physics::PhysicsEngine::unregisterPhysicsComponent(component::Physi
 
 void engine::physics::PhysicsEngine::update(float delta_time)
 {
+	collision_pairs_.clear();
 	// 防止卡顿/断点导致 dt 过大，从而一帧内位移过大直接飞出镜头
 	const float dt = std::clamp(delta_time, 0.0f, 1.0f / 30.0f);
     for (auto* pc : physics_components_) {
@@ -52,5 +56,32 @@ void engine::physics::PhysicsEngine::update(float delta_time)
 				tc->translate(delta_pos);
 			}
         }
+	}
+	checkObjectCollisions();
+}
+
+void engine::physics::PhysicsEngine::checkObjectCollisions()
+{
+	// 基于 ColliderComponent 的碰撞检测
+	for (size_t i = 0; i < physics_components_.size(); ++i) {
+		auto* pcA = physics_components_[i];
+		if (!pcA || !pcA->isEnabled()) continue;
+		auto* ownerA = pcA->getOwner();
+		if (!ownerA) continue;
+		auto* colA = ownerA->getComponent<engine::component::ColliderComponent>();
+		if (!colA || !colA->getIsActive()) continue;
+		for (size_t j = i + 1; j < physics_components_.size(); ++j) {
+			auto* pcB = physics_components_[j];
+			if (!pcB || !pcB->isEnabled()) continue;
+			auto* ownerB = pcB->getOwner();
+			if (!ownerB) continue;
+			auto* colB = ownerB->getComponent<engine::component::ColliderComponent>();
+			if (!colB || !colB->getIsActive()) continue;
+
+			if (engine::physics::collision::checkCollision(*colA, *colB)) {
+				collision_pairs_.emplace_back(ownerA, ownerB);
+				spdlog::info("碰撞检测: 对象 {} 与 对象 {} 碰撞", ownerA->getName(), ownerB->getName());
+			}
+		}
 	}
 }

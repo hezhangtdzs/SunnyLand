@@ -28,6 +28,7 @@ namespace game::scene {
         // 测试函数
         void createTestObject();
         void processTestObjectInput();
+		void TestCollisionPairs();
     };
 
 } // namespace game::scene

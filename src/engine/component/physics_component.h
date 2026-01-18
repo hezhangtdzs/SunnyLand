@@ -11,7 +11,7 @@ namespace engine::physics {
 }
 namespace engine::component {
 	class TransformComponent;
-	class PhysicsComponent : Component {
+	class PhysicsComponent : public Component {
 		friend class engine::object::GameObject;
 	public:
 		glm::vec2 velocity_{ 0.0f, 0.0f };    ///< 物体的速度向量（单位：单位/秒）

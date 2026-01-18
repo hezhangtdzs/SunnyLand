@@ -2,6 +2,9 @@
 #include <vector>
 #include <glm/vec2.hpp>
 namespace engine {
+	namespace object {
+		class GameObject;
+	}
 	namespace component {
 		class PhysicsComponent;
 	}
@@ -16,6 +19,8 @@ namespace engine::physics {
 	class PhysicsEngine {
 	private:
 		std::vector<component::PhysicsComponent*> physics_components_;
+		std::vector<std::pair<engine::object::GameObject*, engine::object::GameObject*>> collision_pairs_;
+
 		glm::vec2 gravity_ = { 0.0f, 980.0f };
 		float max_speed_ = 5000.0f;
 	public:
@@ -33,6 +38,7 @@ namespace engine::physics {
 
 		void registerPhysicsComponent(component::PhysicsComponent* physics_component);
 		void unregisterPhysicsComponent(component::PhysicsComponent* physics_component);
+		const auto& getCollisionPairs() const { return collision_pairs_; };
 
 		void update(float delta_time);
 
@@ -41,5 +47,8 @@ namespace engine::physics {
 		const glm::vec2& getGravity() const { return gravity_; }
 		void setMaxSpeed(float max_speed) { max_speed_ = max_speed; }
 		float getMaxSpeed() const { return max_speed_; }
+	private:
+		// 新增：碰撞检测循环
+		void checkObjectCollisions();
 	};
 }  // namespace engine::physics
