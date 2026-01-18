@@ -13,7 +13,7 @@ namespace game::scene {
      * @brief 主要的游戏场景，包含玩家、敌人、关卡元素等。
      */
     class GameScene final : public engine::scene::Scene {
-
+		engine::object::GameObject* test_object_{ nullptr }; ///< 测试用的游戏对象指针
     public:
         GameScene(std::string name, engine::core::Context& context, engine::scene::SceneManager& scene_manager);
 
@@ -27,7 +27,7 @@ namespace game::scene {
     private:
         // 测试函数
         void createTestObject();
-        void testCamera();
+        void processTestObjectInput();
     };
 
 } // namespace game::scene

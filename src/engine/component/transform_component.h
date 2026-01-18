@@ -78,5 +78,7 @@ namespace engine::component {
 		 * @param scale 新的缩放比例。
 		 */
 		void setScale(const glm::vec2& scale);
+
+		void translate(const glm::vec2& offset);
 	};
 }

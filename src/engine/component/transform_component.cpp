@@ -13,3 +13,8 @@ void engine::component::TransformComponent::setScale(const glm::vec2& scale)
         }
     }
 }
+
+void engine::component::TransformComponent::translate(const glm::vec2& offset)
+{
+	position_ += offset;
+}

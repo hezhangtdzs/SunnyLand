@@ -13,6 +13,7 @@
 #include "context.h"
 #include "../scene/scene_manager.h"
 #include "../../game/scene/game_scene.h"
+#include "../physics/physics_engine.h"
 
 engine::core::GameApp::GameApp() = default;
 
@@ -55,6 +56,7 @@ bool engine::core::GameApp::init()
 		initResourceManager()&&
 		initRenderer()&&
 		initCamera()&&
+		initPhysicsEngine() &&
 		initContext()&&
 		initSceneManager()) 
 	{
@@ -115,6 +117,7 @@ void engine::core::GameApp::close()
 		SDL_DestroyWindow(window_);
 		window_ = nullptr;
 	}
+	scene_manager_->close();
 	resource_manager_.reset();
 	SDL_Quit();
 	is_running_ = false;
@@ -228,7 +231,8 @@ bool engine::core::GameApp::initContext()
 			*renderer_,
 			*camera_,
 			*resource_manager_,
-			*input_manager_);
+			*input_manager_,
+			*physics_engine_);
 	}
 	catch (const std::exception& e) {
 		spdlog::error("初始化上下文失败: {}", e.what());
@@ -244,6 +248,21 @@ bool engine::core::GameApp::initSceneManager()
 	catch (const std::exception& e) {
 		spdlog::error("初始化场景管理器失败: {}", e.what());
 		return false;
+	}
+	return true;
+}
+
+bool engine::core::GameApp::initPhysicsEngine()
+{
+	try
+	{
+		physics_engine_ = std::make_unique<engine::physics::PhysicsEngine>();
+	}
+	catch (const std::exception&)
+	{
+		spdlog::error("初始化物理引擎失败。");
+		return false;
+	
 	}
 	return true;
 }

@@ -12,6 +12,10 @@ namespace engine::render
 	class Renderer;
 	class Camera;
 }
+namespace engine::physics
+{
+	class PhysicsEngine;
+}
 namespace engine::core
 {
 	class Context final
@@ -21,11 +25,13 @@ namespace engine::core
 			engine::render::Renderer& renderer_;
 			engine::render::Camera& camera_;
 			engine::input::InputManager& input_manager_;
+			engine::physics::PhysicsEngine& physics_engine_;
 	public:
 		Context(engine::render::Renderer& renderer,
 				engine::render::Camera& camera,
 				engine::resource::ResourceManager& resource_manager,
-				engine::input::InputManager& input_manager);
+				engine::input::InputManager& input_manager,
+				engine::physics::PhysicsEngine& physics_engine);
 			
 
 		Context(const Context&) = delete;
@@ -49,6 +55,10 @@ namespace engine::core
 		engine::input::InputManager& getInputManager()
 		{
 			return input_manager_;
+		}
+		engine::physics::PhysicsEngine& getPhysicsEngine()
+		{
+			return physics_engine_;
 		}
 	};
 

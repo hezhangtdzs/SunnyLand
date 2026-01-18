@@ -78,9 +78,9 @@ namespace engine::object
 			if (hasComponent<T>()) {
 				return getComponent<T>();
 			}
-			auto new_component = std::make_unique<T>(std::forward<Args>(args)...);
-			T* raw_ptr = new_component.get();
-			components_[type_index] = std::move(new_component);
+		auto new_component = std::make_unique<T>(std::forward<Args>(args)...);
+		T* raw_ptr = new_component.get();
+		components_[type_index] = std::unique_ptr<engine::component::Component>(new_component.release());
 			// 这里需要 Component 的完整定义
 			raw_ptr->setOwner(this);
 			raw_ptr->init();

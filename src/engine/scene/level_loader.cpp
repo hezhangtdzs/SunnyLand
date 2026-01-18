@@ -2,6 +2,7 @@
 #include "../component/parallax_component.h"
 #include "../component/transform_component.h"
 #include "../component/tilelayer_component.h"
+#include "../component/sprite_component.h"
 #include "../object/game_object.h"
 #include "../scene/scene.h"
 #include "../core/context.h"
@@ -143,10 +144,62 @@ namespace engine::scene {
         scene.addGameObject(std::move(game_object));
     }
 
-    void LevelLoader::loadObjectLayer(const nlohmann::json&, Scene&)
-    {
-        // TODO
-    }
+    void LevelLoader::loadObjectLayer(const nlohmann::json & layer_json, Scene & scene)
+        {
+            if (!layer_json.contains("objects") || !layer_json["objects"].is_array()) {
+                spdlog::error("对象图层 '{}' 缺少 'objects' 属性。", layer_json.value("name", "Unnamed"));
+                return;
+            }
+
+            const auto& objects = layer_json["objects"];
+            for (const auto& object : objects) {
+                auto gid = object.value("gid", 0);
+
+                if (gid == 0) {
+                    // 如果gid为0，代表是自定义形状，如碰撞盒，我们以后再处理
+                    // TODO: Handle shapes
+                }
+                else {
+                    // 如果gid存在，则代表这是一个带图像的对象
+                    auto tile_info = getTileInfoByGid(gid);
+                    if (tile_info.sprite.getTextureId().empty()) {
+                        spdlog::error("gid为 {} 的瓦片没有图像纹理。", gid);
+                        continue;
+                    }
+
+                    // 1. 获取Transform信息
+                    auto position = glm::vec2(object.value("x", 0.0f), object.value("y", 0.0f));
+                    auto dst_size = glm::vec2(object.value("width", 0.0f), object.value("height", 0.0f));
+
+                    // !! 关键的坐标转换 !!
+                    position = glm::vec2(position.x, position.y - dst_size.y);
+
+                    auto rotation = object.value("rotation", 0.0f);
+
+                    // 2. 计算缩放
+                    auto src_size_opt = tile_info.sprite.getSourceRect();
+                    if (!src_size_opt) {
+                        spdlog::error("gid为 {} 的瓦片没有源矩形。", gid);
+                        continue;
+                    }
+                    auto src_size = glm::vec2(src_size_opt->w, src_size_opt->h);
+                    auto scale = dst_size / src_size;
+
+                    // 3. 获取对象名称
+                    const std::string& object_name = object.value("name", "Unnamed");
+
+                    // 4. 创建GameObject并添加组件
+                    auto game_object = std::make_unique<engine::object::GameObject>(object_name);
+                    game_object->addComponent<engine::component::TransformComponent>(position, rotation, scale);
+                    game_object->addComponent<engine::component::SpriteComponent>(std::move(tile_info.sprite), scene.getContext().getResourceManager());
+
+                    // 5. 添加到场景中
+                    scene.addGameObject(std::move(game_object));
+                    spdlog::info("加载对象: '{}' 完成", object_name);
+                }
+            }
+        }
+    
 
     engine::component::TileInfo LevelLoader::getTileInfoByGid(int gid)
     {

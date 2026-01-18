@@ -1,6 +1,8 @@
 #include "scene.h"
 #include<spdlog/spdlog.h>
 #include <algorithm> 
+#include "../core/context.h"
+#include "../physics/physics_engine.h"
 #include "../object/game_object.h"
 
 engine::scene::Scene::Scene(const std::string& scene_name, engine::core::Context& context, engine::scene::SceneManager& scene_manager)
@@ -19,6 +21,10 @@ void engine::scene::Scene::init()
 
 void engine::scene::Scene::update(float delta_time)
 {
+	if(!is_initialized_) return;
+
+	// **首先更新物理引擎**
+	context_.getPhysicsEngine().update(delta_time);
 	for (auto it = game_objects_.begin(); it != game_objects_.end();)
 	{
 			if (*it && !(*it)->getNeedRemove()){

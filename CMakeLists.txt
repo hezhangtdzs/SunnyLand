@@ -69,7 +69,15 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/game/scene/game_scene.h" 
                           "src/game/scene/game_scene.cpp" 
                           "src/engine/component/parallax_component.h" 
-                          "src/engine/component/parallax_component.cpp" "src/engine/scene/level_loader.h" "src/engine/scene/level_loader.cpp" "src/engine/component/tilelayer_component.h" "src/engine/component/tilelayer_component.cpp")
+                          "src/engine/component/parallax_component.cpp" 
+                          "src/engine/scene/level_loader.h" 
+                          "src/engine/scene/level_loader.cpp" 
+                          "src/engine/component/tilelayer_component.h" 
+                          "src/engine/component/tilelayer_component.cpp" 
+                          "src/engine/physics/physics_engine.h" 
+                          "src/engine/physics/physics_engine.cpp" 
+                          "src/engine/component/physics_component.h" 
+                          "src/engine/component/physics_component.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}
