@@ -7,6 +7,7 @@ namespace engine {
 	}
 	namespace component {
 		class PhysicsComponent;
+		class TileLayerComponent;
 	}
 }
 namespace engine::physics {
@@ -20,7 +21,7 @@ namespace engine::physics {
 	private:
 		std::vector<component::PhysicsComponent*> physics_components_;
 		std::vector<std::pair<engine::object::GameObject*, engine::object::GameObject*>> collision_pairs_;
-
+		std::vector<component::TileLayerComponent*> tilelayer_components_;
 		glm::vec2 gravity_ = { 0.0f, 980.0f };
 		float max_speed_ = 5000.0f;
 	public:
@@ -37,7 +38,9 @@ namespace engine::physics {
 		PhysicsEngine& operator=(PhysicsEngine&&) = delete;
 
 		void registerPhysicsComponent(component::PhysicsComponent* physics_component);
+		void registerCollisionLayer(component::TileLayerComponent* tilelayer_component);
 		void unregisterPhysicsComponent(component::PhysicsComponent* physics_component);
+		void unregisterCollisionLayer(component::TileLayerComponent* tilelayer_component);
 		const auto& getCollisionPairs() const { return collision_pairs_; };
 
 		void update(float delta_time);
@@ -50,5 +53,7 @@ namespace engine::physics {
 	private:
 		// 新增：碰撞检测循环
 		void checkObjectCollisions();
+
+		void resolveTileCollisions(engine::component::PhysicsComponent* pc, float delta_time);
 	};
 }  // namespace engine::physics

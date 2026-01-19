@@ -254,7 +254,8 @@ namespace engine::scene {
                 static_cast<float>(tile_size_.y)
             };
             engine::render::Sprite sprite{ texture_id, texture_rect };
-            return engine::component::TileInfo(sprite, engine::component::TileType::NORMAL);    // 目前只完成渲染，以后再考虑瓦片类型
+            auto tile_type = getTileTypeById(tileset, local_id);
+			return engine::component::TileInfo(sprite, tile_type);
         }
         else {   // Case 2: 多图片集合 (Collection of Images)，例如每个瓦片是单独的文件
             if (!tileset.contains("tiles")) {   
@@ -282,7 +283,8 @@ namespace engine::scene {
                             static_cast<float>(tile_json.value("height", image_height))
                         };
                         engine::render::Sprite sprite{ texture_id, texture_rect };
-                        return engine::component::TileInfo(sprite, engine::component::TileType::NORMAL);
+                        auto tile_type = getTileType(tile_json);
+                        return engine::component::TileInfo(sprite, tile_type);
                     }
                 }
             }
@@ -347,6 +349,30 @@ namespace engine::scene {
             spdlog::error("解析路径失败: {}", e.what());
             return relative_path;
         }
+    }
+
+    engine::component::TileType LevelLoader::getTileType(const nlohmann::json& tile_json)
+    {
+        if (tile_json.contains("properties")) {
+            for (const auto& property : tile_json["properties"]) {
+                if (property.value("name", "") == "solid") {
+                    return property.value("value", false) ? engine::component::TileType::SOLID : engine::component::TileType::NORMAL;
+                }
+            }
+        }
+        return engine::component::TileType::NORMAL;
+    }
+
+    engine::component::TileType LevelLoader::getTileTypeById(const nlohmann::json& tileset, int local_id) const
+    {
+        if (tileset.contains("tiles")) {
+            for (const auto& tile : tileset["tiles"]) {
+                if (tile.value("id", -1) == local_id) {
+                    return const_cast<LevelLoader*>(this)->getTileType(tile);
+                }
+            }
+        }
+        return engine::component::TileType::NORMAL;
     }
 
 } // namespace engine::scene

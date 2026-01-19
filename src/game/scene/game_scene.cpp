@@ -5,6 +5,7 @@
 #include "../../engine/component/sprite_component.h"
 #include "../../engine/component/physics_component.h"
 #include "../../engine/component/collider_component.h"
+#include "../../engine/component/tilelayer_component.h"
 #include "../../engine/physics/collider.h"
 #include "../../engine/scene/level_loader.h"
 #include "../../engine/input/input_manager.h"
@@ -25,11 +26,19 @@ namespace game::scene {
         engine::scene::LevelLoader level_loader;
         level_loader.loadLevel("assets/maps/level1.tmj", *this);
 
-        // 创建 test_object
-        createTestObject();
+        auto* main_layer_obj = findGameObjectByName("main");
+        if (main_layer_obj) {
+            auto* tile_layer_comp = main_layer_obj->getComponent<engine::component::TileLayerComponent>();
+            if (tile_layer_comp) {
+                context_.getPhysicsEngine().registerCollisionLayer(tile_layer_comp);
+				spdlog::trace("已注册主图层的 TileLayerComponent 到物理引擎。");
+            }
+            // 创建 test_object
+            createTestObject();
 
-        Scene::init();
-        spdlog::trace("GameScene 初始化完成。");
+            Scene::init();
+            spdlog::trace("GameScene 初始化完成。");
+        }
     }
 
     void GameScene::update(float delta_time) {
@@ -64,49 +73,35 @@ namespace game::scene {
             test_object->addComponent<engine::component::PhysicsComponent>(&context_.getPhysicsEngine());
             test_object->addComponent<engine::component::ColliderComponent>(
                 std::make_unique<engine::physics::AABBCollider>(glm::vec2(32.0f, 32.0f)),
-                engine::utils::Alignment::CENTER);
+                engine::utils::Alignment::TOP_LEFT,
+                false);
             addGameObject(std::move(test_object));
         }
-
-        // 物体2: 静止的箱子 (Circle)
-        {
-            auto test_object2 = std::make_unique<engine::object::GameObject>("test_object2");
-            test_object2->addComponent<engine::component::TransformComponent>(glm::vec2(50.0f, 250.0f)); // 放在下落路径上
-            test_object2->addComponent<engine::component::SpriteComponent>("assets/textures/Props/big-crate.png", context_.getResourceManager());
-            test_object2->addComponent<engine::component::PhysicsComponent>(&context_.getPhysicsEngine(), false); // 不受重力
-            test_object2->addComponent<engine::component::ColliderComponent>(
-                std::make_unique<engine::physics::CircleCollider>(16.0f),
-                engine::utils::Alignment::CENTER);
-            addGameObject(std::move(test_object2));
-        }
-
-        spdlog::trace("test_object/test_object2 创建并添加到 GameScene 中。");
     }
 
     void GameScene::processTestObjectInput()
     {
+
         if (!test_object_) return;
         auto& input_manager = context_.getInputManager();
-        auto* physics_comp = test_object_->getComponent<engine::component::PhysicsComponent>();
-        if (!physics_comp) return;
+        auto* pc = test_object_->getComponent<engine::component::PhysicsComponent>();
+        if (!pc) return;
 
-        // 左右移动暂时还是直接改变位置
+        // 水平移动: 直接设置速度
         if (input_manager.isActionDown("move_left")) {
-            test_object_->getComponent<engine::component::TransformComponent>()->translate(glm::vec2(-2, 0));
+            pc->velocity_.x = -100.0f;
         }
-        if (input_manager.isActionDown("move_right")) {
-            test_object_->getComponent<engine::component::TransformComponent>()->translate(glm::vec2(2, 0));
+        else if (input_manager.isActionDown("move_right")) {
+            pc->velocity_.x = 100.0f;
         }
-        if (input_manager.isActionDown("move_up")) {
-            test_object_->getComponent<engine::component::TransformComponent>()->translate(glm::vec2(0, -2));
+        else {
+            // 模拟摩擦力，让物体停下来
+            pc->velocity_.x *= 0.9f;
         }
-        if (input_manager.isActionDown("move_down")) {
-            test_object_->getComponent<engine::component::TransformComponent>()->translate(glm::vec2(0, 2));
-        }
-        
-        // 按下跳跃键时，给予一个向上的瞬时速度 (如果启用了重力)
+
+        // 跳跃: 给予一个向上的瞬时速度
         if (input_manager.isActionPressed("jump")) {
-            physics_comp->setVelocity(glm::vec2(physics_comp->getVelocity().x, -400));
+            pc->velocity_.y = -400.0f;
         }
     }
 

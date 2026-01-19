@@ -61,34 +61,35 @@ void engine::component::ColliderComponent::updateOffset()
 	glm::vec2 position = transform_component_->getPosition();
 	glm::vec2 collider_size = collider_->getAABBSize();
 	auto scale = transform_component_->getScale();
+	const glm::vec2 scaled_size = collider_size * scale;
 	// 根据对齐方式调整偏移量
 	switch (alignment_) {
 	case engine::utils::Alignment::TOP_LEFT:
 		offset_ = { 0, 0 };
 		break;
 	case engine::utils::Alignment::TOP_CENTER:
-		offset_ = glm::vec2{ -collider_size.x / 2.0f, 0 } * scale;
+		offset_ = glm::vec2{ -scaled_size.x / 2.0f, 0.0f };
 		break;
 	case engine::utils::Alignment::TOP_RIGHT:
-		offset_ = glm::vec2{ -collider_size.x, 0 } * scale;
+		offset_ = glm::vec2{ -scaled_size.x, 0.0f };
 		break;
 	case engine::utils::Alignment::CENTER_LEFT:
-		offset_ = glm::vec2{ 0, -collider_size.y / 2.0f } * scale;
+		offset_ = glm::vec2{ 0.0f, -scaled_size.y / 2.0f };
 		break;
 	case engine::utils::Alignment::CENTER:
-		offset_ = glm::vec2{ -collider_size.x / 2.0f, -collider_size.y / 2.0f } * scale;
+		offset_ = glm::vec2{ -scaled_size.x / 2.0f, -scaled_size.y / 2.0f };
 		break;
 	case engine::utils::Alignment::CENTER_RIGHT:
-		offset_ = glm::vec2{ -collider_size.x, -collider_size.y / 2.0f } * scale;
+		offset_ = glm::vec2{ -scaled_size.x, -scaled_size.y / 2.0f };
 		break;
 	case engine::utils::Alignment::BOTTOM_LEFT:
-		offset_ = glm::vec2{ 0, -collider_size.y } * scale;
+		offset_ = glm::vec2{ 0.0f, -scaled_size.y };
 		break;
 	case engine::utils::Alignment::BOTTOM_CENTER:
-		offset_ = glm::vec2{ -collider_size.x / 2.0f, -collider_size.y } * scale;
+		offset_ = glm::vec2{ -scaled_size.x / 2.0f, -scaled_size.y };
 		break;
 	case engine::utils::Alignment::BOTTOM_RIGHT:
-		offset_ = glm::vec2{ -collider_size.x, -collider_size.y } * scale;
+		offset_ = glm::vec2{ -scaled_size.x, -scaled_size.y };
 		break;
 	default:
 		break;

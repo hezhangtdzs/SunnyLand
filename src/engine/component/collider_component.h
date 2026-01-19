@@ -26,7 +26,7 @@ namespace engine::component {
 		bool is_active_{ true }; ///< 碰撞体是否启用
 
 	public:
-		explicit ColliderComponent(std::unique_ptr<engine::physics::Collider> collider, engine::utils::Alignment alignment, bool is_trigger=true,bool is_active = true);
+		explicit ColliderComponent(std::unique_ptr<engine::physics::Collider> collider, engine::utils::Alignment alignment, bool is_trigger=false,bool is_active = true);
 		~ColliderComponent() override = default;
 		ColliderComponent(const ColliderComponent&) = delete;
 		ColliderComponent& operator=(const ColliderComponent&) = delete;

@@ -6,6 +6,7 @@
 
 namespace engine::component {
     struct TileInfo;
+	enum class TileType;
 }
 
 namespace engine::scene {
@@ -60,6 +61,10 @@ namespace engine::scene {
          * @return std::string 解析后的完整路径。
          */
         std::string resolvePath(const std::string& relative_path, const std::string& file_path);
+
+        engine::component::TileType getTileType(const nlohmann::json& tile_json);
+        engine::component::TileType getTileTypeById(const nlohmann::json& tileset, int local_id) const;
+
     };
 
 } // namespace engine::scene

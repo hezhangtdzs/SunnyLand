@@ -3,6 +3,9 @@
 #include <glm/glm.hpp>
 #include "../object/game_object.h"
 #include "sprite_component.h"
+
+// Keep collider offsets consistent with scaling changes
+#include "collider_component.h"
 void engine::component::TransformComponent::setScale(const glm::vec2& scale)
 {
     scale_ = scale;
@@ -11,6 +14,10 @@ void engine::component::TransformComponent::setScale(const glm::vec2& scale)
         if (sprite_comp) {
             sprite_comp->updateOffset();
         }
+		auto collider_comp = owner_->getComponent<ColliderComponent>();
+		if (collider_comp) {
+			collider_comp->setAlignment(collider_comp->getAlignment());
+		}
     }
 }
 

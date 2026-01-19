@@ -1,7 +1,9 @@
 #include "tilelayer_component.h"
 #include "../object/game_object.h"
+#include "transform_component.h"
 #include "../core/context.h"
 #include "../render/renderer.h"
+#include "../physics/physics_engine.h"
 #include "../render/camera.h"
 #include <spdlog/spdlog.h>
 #include <glm/ext/vector_int2.hpp> // 修复VCIC001警告
@@ -47,7 +49,13 @@ TileType engine::component::TileLayerComponent::getTileTypeAt(const glm::ivec2& 
 TileType engine::component::TileLayerComponent::getTileTypeAtWorldPos(const glm::vec2& world_pos) const
 {
 	// 计算世界坐标对应的瓦片坐标
-	glm::ivec2 tile_coords = glm::floor((world_pos - offset_) / glm::vec2(tile_size_));
+	glm::vec2 layer_world_offset = offset_;
+	if (owner_) {
+		if (auto* tc = owner_->getComponent<engine::component::TransformComponent>()) {
+			layer_world_offset += tc->getPosition();
+		}
+	}
+	glm::ivec2 tile_coords = glm::floor((world_pos - layer_world_offset) / glm::vec2(tile_size_));
 	return getTileTypeAt(tile_coords);
 }
 
@@ -73,9 +81,16 @@ void engine::component::TileLayerComponent::render(engine::core::Context& contex
 	glm::vec2 cam_pos = camera.getPosition();
 	glm::vec2 cam_size = camera.getViewportSize();
 
+	glm::vec2 layer_world_offset = offset_;
+	if (owner_) {
+		if (auto* tc = owner_->getComponent<engine::component::TransformComponent>()) {
+			layer_world_offset += tc->getPosition();
+		}
+	}
+
 	// 计算视野范围对应的网格坐标 (包含一些冗余量以防边缘闪烁)
-	glm::ivec2 start_tile = glm::floor((cam_pos - offset_) / glm::vec2(tile_size_));
-	glm::ivec2 end_tile = glm::ceil((cam_pos + cam_size - offset_) / glm::vec2(tile_size_));
+	glm::ivec2 start_tile = glm::floor((cam_pos - layer_world_offset) / glm::vec2(tile_size_));
+	glm::ivec2 end_tile = glm::ceil((cam_pos + cam_size - layer_world_offset) / glm::vec2(tile_size_));
 
 	// 限制坐标在地图有效范围内 (Intersection)
 	start_tile = glm::max(start_tile, glm::ivec2(0));
@@ -87,7 +102,7 @@ void engine::component::TileLayerComponent::render(engine::core::Context& contex
 			const TileInfo& tile = getTileAt({ x, y });
 			
 			if (tile.type != TileType::EMPTY) {
-				glm::vec2 tile_world_pos = offset_ + glm::vec2(x * tile_size_.x, y * tile_size_.y);
+				glm::vec2 tile_world_pos = layer_world_offset + glm::vec2(x * tile_size_.x, y * tile_size_.y);
 				
 				// --- 3. 底部对齐逻辑 (Bottom Alignment) ---
 				// Tiled 规则：如果图片高度 > 瓦片高度（如树木），图片底部应与网格底部对齐
@@ -111,4 +126,11 @@ void engine::component::TileLayerComponent::render(engine::core::Context& contex
 
 void engine::component::TileLayerComponent::update(float deltaTime, engine::core::Context& context)
 {
+}
+
+void engine::component::TileLayerComponent::clean()
+{
+	if (physics_engine_) {
+		physics_engine_->unregisterCollisionLayer(this);
+	}
 }
