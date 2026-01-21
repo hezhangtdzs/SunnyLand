@@ -1,13 +1,14 @@
 #pragma once
 #include <vector>
 #include <glm/vec2.hpp>
+#include "../component/tilelayer_component.h"
+#include "../utils/math.h"
 namespace engine {
 	namespace object {
 		class GameObject;
 	}
 	namespace component {
 		class PhysicsComponent;
-		class TileLayerComponent;
 	}
 }
 namespace engine::physics {
@@ -24,6 +25,8 @@ namespace engine::physics {
 		std::vector<component::TileLayerComponent*> tilelayer_components_;
 		glm::vec2 gravity_ = { 0.0f, 980.0f };
 		float max_speed_ = 5000.0f;
+		glm::vec2 world_bounds_min_{ 0.0f, 0.0f };
+		glm::vec2 world_bounds_max_{ 0.0f, 0.0f };
 	public:
 		/**
 		 * @brief 更新所有物理组件
@@ -50,10 +53,31 @@ namespace engine::physics {
 		const glm::vec2& getGravity() const { return gravity_; }
 		void setMaxSpeed(float max_speed) { max_speed_ = max_speed; }
 		float getMaxSpeed() const { return max_speed_; }
+		void setWorldBounds(const engine::utils::Rect& bounds) {
+			world_bounds_min_ = bounds.position;
+			world_bounds_max_ = bounds.position + bounds.size;
+		}
 	private:
 		// 新增：碰撞检测循环
 		void checkObjectCollisions();
+		float getTileHeightAtWidth(float width, engine::component::TileType type, glm::vec2 tile_size);
 
 		void resolveTileCollisions(engine::component::PhysicsComponent* pc, float delta_time);
+		void resolveSolidObjectCollisions(engine::object::GameObject* move_obj, engine::object::GameObject* solid_obj);
+
+		void resolveXAxisCollision(
+			engine::component::PhysicsComponent* pc,
+			glm::vec2& aabb_pos,
+			float dx,
+			const glm::vec2& collider_size,
+			engine::component::TileLayerComponent* layer);
+
+		void resolveYAxisCollision(
+			engine::component::PhysicsComponent* pc,
+			glm::vec2& aabb_pos,
+			float dy,
+			const glm::vec2& collider_size,
+			engine::component::TileLayerComponent* layer);
 	};
+
 }  // namespace engine::physics

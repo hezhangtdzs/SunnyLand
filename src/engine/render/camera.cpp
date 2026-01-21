@@ -1,5 +1,5 @@
 #include "camera.h"
-
+#include "../component/transform_component.h"
 	namespace engine::render {
 		/**
 		 * @brief 析构函数。
@@ -11,7 +11,12 @@
 		 * @param delta_time 自上一帧以来的时间间隔（秒）。
 		 */
 		void Camera::update(float delta_time) {
-	
+			if (target_ == nullptr) return;
+			// 计算目标位置（让目标位于视口中心）
+			glm::vec2 desired_position = target_->getPosition() - viewport_size_ / 2.0f;
+			// 使用线性插值平滑地移动相机到目标位置
+			position_ = glm::mix(position_, desired_position, smooth_speed_ * delta_time);
+			clampPosition(); // 确保相机不越界
 		}
 
 		/**
@@ -103,10 +108,27 @@
 			return viewport_size_;
 		}
 
+		void Camera::setTarget(engine::component::TransformComponent* target)
+		{
+			target_ = target;
+		}
+
 		/**
 		 * @brief 修正相机位置，确保其保持在限制边界内。
 		 * 逻辑会考虑视口大小，防止相机超出背景区域。
 		 */
+		engine::component::TransformComponent* Camera::getTarget() const
+		{
+			return target_;
+		}
+		void Camera::setSmoothSpeed(float speed)
+		{
+			smooth_speed_ = speed;
+		}
+		float Camera::getSmoothSpeed() const
+		{
+			return smooth_speed_;
+		}
 		void Camera::clampPosition() {
 			if (limit_bounds_.has_value() && limit_bounds_->size.x > 0 && limit_bounds_->size.y > 0) {
 				glm::vec2 min_cam_pos = limit_bounds_->position;

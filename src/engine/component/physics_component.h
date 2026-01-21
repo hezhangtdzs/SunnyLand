@@ -23,6 +23,12 @@ namespace engine::component {
 		float mass_{ 1.0f };                  ///< 物体的质量（单位：质量单位）
 		bool use_gravity_{ true };          ///< 是否受重力影响
 		bool enable_{ true };              ///< 物理模拟是否启用
+
+
+		bool collided_below_ = false;
+		bool collided_above_ = false;
+		bool collided_left_ = false;
+		bool collided_right_ = false;
 	public:
 		PhysicsComponent(engine::physics::PhysicsEngine* physics_engine, bool use_gravity = true, float mass = 1.0f);
 		~PhysicsComponent();
@@ -46,6 +52,22 @@ namespace engine::component {
 		void setVelocity(const glm::vec2& velocity) { velocity_ = velocity; }       ///< @brief 设置速度
 		const glm::vec2& getVelocity() const { return velocity_; }                  ///< @brief 获取当前速度
 		TransformComponent* getTransform() const { return transform_component_; }             ///< @brief 获取TransformComponent指针
+		void resetCollisionFlags() {
+			collided_below_ = false;
+			collided_above_ = false;
+			collided_left_ = false;
+			collided_right_ = false;
+		}
+		bool hasCollidedBelow() const { return collided_below_; }
+		bool hasCollidedAbove() const { return collided_above_; }
+		bool hasCollidedLeft() const { return collided_left_; }
+		bool hasCollidedRight() const { return collided_right_; }
+
+		void setCollidedBelow(bool collided) { collided_below_ = collided; }
+		void setCollidedAbove(bool collided) { collided_above_ = collided; }
+		void setCollidedLeft(bool collided) { collided_left_ = collided; }
+		void setCollidedRight(bool collided) { collided_right_ = collided; }
+
 	private:
 		void init() override;
 		void update(float deltaTime, engine::core::Context& context) override;

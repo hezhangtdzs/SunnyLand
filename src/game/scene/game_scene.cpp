@@ -6,6 +6,7 @@
 #include "../../engine/component/physics_component.h"
 #include "../../engine/component/collider_component.h"
 #include "../../engine/component/tilelayer_component.h"
+#include "../../game/component/player_component.h"
 #include "../../engine/physics/collider.h"
 #include "../../engine/scene/level_loader.h"
 #include "../../engine/input/input_manager.h"
@@ -23,27 +24,14 @@ namespace game::scene {
     }
 
     void GameScene::init() {
-        engine::scene::LevelLoader level_loader;
-        level_loader.loadLevel("assets/maps/level1.tmj", *this);
-
-        auto* main_layer_obj = findGameObjectByName("main");
-        if (main_layer_obj) {
-            auto* tile_layer_comp = main_layer_obj->getComponent<engine::component::TileLayerComponent>();
-            if (tile_layer_comp) {
-                context_.getPhysicsEngine().registerCollisionLayer(tile_layer_comp);
-				spdlog::trace("已注册主图层的 TileLayerComponent 到物理引擎。");
-            }
-            // 创建 test_object
-            createTestObject();
-
-            Scene::init();
-            spdlog::trace("GameScene 初始化完成。");
+        if (initLevel() && initPlayer()) {
+            spdlog::info("GameScene 初始化完成。");
         }
+        Scene::init();
     }
 
     void GameScene::update(float delta_time) {
         Scene::update(delta_time);
-		TestCollisionPairs();
     }
 
     void GameScene::render() {
@@ -52,64 +40,71 @@ namespace game::scene {
 
     void GameScene::handleInput() {
         Scene::handleInput();
-        processTestObjectInput();
     }
 
     void GameScene::clean() {
         Scene::clean();
     }
 
-    // --- 私有方法 ---
-
-    void GameScene::createTestObject() {
-        spdlog::trace("在 GameScene 中创建 test_object...");
-
-        // 物体1: 受重力的箱子 (AABB)
-        {
-            auto test_object = std::make_unique<engine::object::GameObject>("test_object");
-            test_object_ = test_object.get();
-            test_object->addComponent<engine::component::TransformComponent>(glm::vec2(100.0f, 100.0f));
-            test_object->addComponent<engine::component::SpriteComponent>("assets/textures/Props/big-crate.png", context_.getResourceManager());
-            test_object->addComponent<engine::component::PhysicsComponent>(&context_.getPhysicsEngine());
-            test_object->addComponent<engine::component::ColliderComponent>(
-                std::make_unique<engine::physics::AABBCollider>(glm::vec2(32.0f, 32.0f)),
-                engine::utils::Alignment::TOP_LEFT,
-                false);
-            addGameObject(std::move(test_object));
-        }
-    }
-
-    void GameScene::processTestObjectInput()
+    bool GameScene::initLevel()
     {
-
-        if (!test_object_) return;
-        auto& input_manager = context_.getInputManager();
-        auto* pc = test_object_->getComponent<engine::component::PhysicsComponent>();
-        if (!pc) return;
-
-        // 水平移动: 直接设置速度
-        if (input_manager.isActionDown("move_left")) {
-            pc->velocity_.x = -100.0f;
-        }
-        else if (input_manager.isActionDown("move_right")) {
-            pc->velocity_.x = 100.0f;
-        }
-        else {
-            // 模拟摩擦力，让物体停下来
-            pc->velocity_.x *= 0.9f;
+        // 加载关卡（level_loader通常加载完成后即可销毁，因此不存为成员变量）
+        engine::scene::LevelLoader level_loader;
+        if (!level_loader.loadLevel("assets/maps/level1.tmj", *this)) {
+            spdlog::error("关卡加载失败");
+            return false;
         }
 
-        // 跳跃: 给予一个向上的瞬时速度
-        if (input_manager.isActionPressed("jump")) {
-            pc->velocity_.y = -400.0f;
+        // 注册"main"层到物理引擎
+        auto* main_layer = findGameObjectByName("main");
+        if (!main_layer) {
+            spdlog::error("未找到\"main\"层");
+            return false;
         }
+        auto* tile_layer = main_layer->getComponent<engine::component::TileLayerComponent>();
+        if (!tile_layer) {
+            spdlog::error("\"main\"层没有 TileLayerComponent 组件");
+            return false;
+        }
+        context_.getPhysicsEngine().registerCollisionLayer(tile_layer);
+        spdlog::info("注册\"main\"层到物理引擎");
+
+        // 设置相机边界
+        auto world_size = main_layer->getComponent<engine::component::TileLayerComponent>()->getWorldSize();
+        context_.getCamera().setLimitBounds(engine::utils::Rect(glm::vec2(0.0f), world_size));
+
+        // 设置世界边界
+        context_.getPhysicsEngine().setWorldBounds(engine::utils::Rect(glm::vec2(0.0f), world_size));
+
+        spdlog::trace("关卡初始化完成。");
+        return true;
     }
 
-	void GameScene::TestCollisionPairs()
-	{
-		auto& collision_pairs = context_.getPhysicsEngine().getCollisionPairs();
-		for (auto& pair : collision_pairs) {
-			spdlog::info("碰撞对: {} 和 {}", pair.first->getName(), pair.second->getName());
-		}
-	}
-} // namespace game::scene 
+    bool GameScene::initPlayer()
+    {
+        player_ = findGameObjectByName("player");
+        if (!player_) {
+            spdlog::error("未找到玩家对象");
+            return false;
+        }
+
+        // 添加PlayerComponent到玩家对象
+        auto* player_component = player_->addComponent<game::component::PlayerComponent>();
+        if (!player_component) {
+            spdlog::error("无法添加 PlayerComponent 到玩家对象");
+            return false;
+        }
+
+        // 相机跟随玩家
+        auto* player_transform = player_->getComponent<engine::component::TransformComponent>();
+        if (!player_transform) {
+            spdlog::error("玩家对象没有 TransformComponent 组件, 无法设置相机目标");
+            return false;
+        }
+        context_.getCamera().setTarget(player_transform);
+        spdlog::trace("Player初始化完成。");
+        return true;
+    }
+}
+
+   

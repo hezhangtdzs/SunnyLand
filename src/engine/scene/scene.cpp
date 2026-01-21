@@ -4,6 +4,7 @@
 #include "../core/context.h"
 #include "../physics/physics_engine.h"
 #include "../object/game_object.h"
+#include "../render/camera.h" // 添加Camera头文件
 
 engine::scene::Scene::Scene(const std::string& scene_name, engine::core::Context& context, engine::scene::SceneManager& scene_manager)
 	:scene_name_(scene_name), context_(context), scene_manager_(scene_manager)
@@ -22,9 +23,9 @@ void engine::scene::Scene::init()
 void engine::scene::Scene::update(float delta_time)
 {
 	if(!is_initialized_) return;
-
-	// **首先更新物理引擎**
+	// 先更新物理，再更新相机与对象逻辑，避免同一帧重复积分导致抖动/延迟感
 	context_.getPhysicsEngine().update(delta_time);
+	context_.getCamera().update(delta_time); // 更新相机
 	for (auto it = game_objects_.begin(); it != game_objects_.end();)
 	{
 			if (*it && !(*it)->getNeedRemove()){

@@ -3,9 +3,13 @@
 #include "../component/transform_component.h"
 #include "../component/tilelayer_component.h"
 #include "../component/sprite_component.h"
+#include "../component/collider_component.h"
+#include "../component/physics_component.h"
+#include "../physics/collider.h"
 #include "../object/game_object.h"
 #include "../scene/scene.h"
 #include "../core/context.h"
+#include "../resource/resource_manager.h"
 #include "../render/sprite.h"
 #include "../utils/math.h"
 #include <nlohmann/json.hpp>
@@ -122,9 +126,18 @@ namespace engine::scene {
             spdlog::error("图层 '{}' 缺少 'data' 属性。", layer_json.value("name", "Unnamed"));
             return;
         }
+
+        const glm::ivec2 layer_map_size(layer_json.value("width", 0), layer_json.value("height", 0));
+        if (layer_map_size.x <= 0 || layer_map_size.y <= 0) {
+            spdlog::error("图层 '{}' 缺少或无效的 width/height。", layer_json.value("name", "Unnamed"));
+            return;
+        }
+
+        const glm::vec2 layer_offset(layer_json.value("offsetx", 0.0f), layer_json.value("offsety", 0.0f));
+
         // 准备 TileInfo Vector (瓦片数量 = 地图宽度 * 地图高度)
         std::vector<engine::component::TileInfo> tiles;
-        tiles.reserve(map_size_.x * map_size_.y);
+        tiles.reserve(static_cast<size_t>(layer_map_size.x) * static_cast<size_t>(layer_map_size.y));
 
         // 获取图层数据 (瓦片 ID 列表)
         const auto& data = layer_json["data"];
@@ -134,12 +147,20 @@ namespace engine::scene {
             tiles.push_back(getTileInfoByGid(gid));
         }
 
+        if (tiles.size() != static_cast<size_t>(layer_map_size.x) * static_cast<size_t>(layer_map_size.y)) {
+            spdlog::warn("图层 '{}' 的瓦片数据数量({})与 width*height({})不一致。", layer_json.value("name", "Unnamed"),
+                tiles.size(), static_cast<size_t>(layer_map_size.x) * static_cast<size_t>(layer_map_size.y));
+        }
+
         // 获取图层名称
         const std::string& layer_name = layer_json.value("name", "Unnamed");
         // 创建游戏对象
         auto game_object = std::make_unique<engine::object::GameObject>(layer_name);
+        // 始终添加 TransformComponent，即使 offset 为 0，保证渲染和逻辑一致性
+        game_object->addComponent<engine::component::TransformComponent>(layer_offset);
+        
         // 添加Tilelayer组件
-        game_object->addComponent<engine::component::TileLayerComponent>(tile_size_, map_size_, std::move(tiles));
+        game_object->addComponent<engine::component::TileLayerComponent>(tile_size_, layer_map_size, std::move(tiles));
         // 添加到场景中
         scene.addGameObject(std::move(game_object));
     }
@@ -161,7 +182,10 @@ namespace engine::scene {
                 }
                 else {
                     // 如果gid存在，则代表这是一个带图像的对象
-                    auto tile_info = getTileInfoByGid(gid);
+                    auto tile_data = getTileDataByGid(gid);
+                    auto& tile_info = tile_data.info;
+                    auto* tile_json = tile_data.json_ptr;
+
                     if (tile_info.sprite.getTextureId().empty()) {
                         spdlog::error("gid为 {} 的瓦片没有图像纹理。", gid);
                         continue;
@@ -192,7 +216,35 @@ namespace engine::scene {
                     auto game_object = std::make_unique<engine::object::GameObject>(object_name);
                     game_object->addComponent<engine::component::TransformComponent>(position, rotation, scale);
                     game_object->addComponent<engine::component::SpriteComponent>(std::move(tile_info.sprite), scene.getContext().getResourceManager());
-
+                    
+                    // 可以在这里处理 tile_json 中的自定义属性，例如碰撞盒等
+                    if (tile_info.type == engine::component::TileType::SOLID && tile_json) {
+                        auto collider = std::make_unique<engine::physics::AABBCollider>(src_size);
+                        game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
+						game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
+                        game_object->setTag("solid");
+					}
+					else if (auto rect = getCollisionRect(tile_json); rect.has_value()) {
+                        auto collider = std::make_unique<engine::physics::AABBCollider>(rect->size);
+                        auto collider_component = game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
+                        collider_component->setOffset(rect->position);
+						game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
+                    }
+                    if (tile_json) {
+                        if (auto tag = getTileProperty<std::string>(*tile_json, "tag"); tag) {
+                            game_object->setTag(tag.value());
+                        }
+                        if (auto gravity = getTileProperty<bool>(*tile_json, "gravity"); gravity) {
+                            auto* pc = game_object->getComponent<engine::component::PhysicsComponent>();
+                            if (pc) {
+                                pc->setUseGravity(gravity.value());
+                            }
+                            else { // 如果对象还没有物理组件，则为其添加一个
+                                game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), gravity.value());
+                            }
+                        }
+                    }
+                    
                     // 5. 添加到场景中
                     scene.addGameObject(std::move(game_object));
                     spdlog::info("加载对象: '{}' 完成", object_name);
@@ -200,118 +252,119 @@ namespace engine::scene {
             }
         }
     
-
-    engine::component::TileInfo LevelLoader::getTileInfoByGid(int gid)
+    const nlohmann::json* LevelLoader::findTileset(int gid)
     {
-        // 辅助 lambda: 返回空瓦片，其类型为 EMPTY，这样渲染循环会跳过它
-        auto make_empty_tile = []() {
-            return engine::component::TileInfo(engine::render::Sprite(), engine::component::TileType::EMPTY);
+        if (gid <= 0) return nullptr;
+
+        // 检查缓存
+        if (cache_.data && gid >= cache_.first_gid && (cache_.next_first_gid == -1 || gid < cache_.next_first_gid)) {
+            return cache_.data;
+        }
+
+        // upper_bound：查找tileset_data_中键大于 gid 的第一个元素
+        auto it = tileset_data_.upper_bound(gid);
+        if (it == tileset_data_.begin()) {
+            return nullptr;
+        }
+
+        auto current_it = std::prev(it);
+        cache_.first_gid = current_it->first;
+        cache_.next_first_gid = (it == tileset_data_.end()) ? -1 : it->first;
+        cache_.data = &current_it->second;
+
+        return cache_.data;
+    }
+
+    TileData LevelLoader::getTileDataByGid(int gid)
+    {
+        auto make_empty_data = []() {
+            return TileData{ engine::component::TileInfo(engine::render::Sprite(), engine::component::TileType::EMPTY), nullptr };
         };
 
-        if (gid == 0) {
-            return make_empty_tile();
+        const nlohmann::json* tileset_ptr = findTileset(gid);
+        if (!tileset_ptr) {
+            if (gid != 0) spdlog::warn("gid为 {} 的瓦片未找到图块集。", gid);
+            return make_empty_data();
         }
 
-        // upper_bound：查找tileset_data_中键大于 gid 的第一个元素，返回迭代器
-        auto tileset_it = tileset_data_.upper_bound(gid);
-        if (tileset_it == tileset_data_.begin()) {
-            // 使用 warn 而不是 error，避免无效 GID（如被删除的瓦片）刷屏
-            spdlog::warn("gid为 {} 的瓦片未找到图块集。", gid);
-            return make_empty_tile();
-        }
-        --tileset_it;  // 前移一个位置，这样就得到不大于gid的最近一个元素（我们需要的）
+        const auto& tileset = *tileset_ptr;
+        auto local_id = gid - cache_.first_gid;
+        const std::string file_path = tileset.value("file_path", "");
 
-        const auto& tileset = tileset_it->second;
-        auto local_id = gid - tileset_it->first;        // 计算瓦片在图块集中的局部ID
-        const std::string file_path = tileset.value("file_path", "");       // 获取图块集文件路径
-        
-        // 图块集分为两种情况，需要分别考虑
-        if (tileset.contains("image")) {    // Case 1: 单一图片 (Tileset Image)，例如包含所有瓦片的大图
+        if (tileset.contains("image")) {
+            // Case 1: 单一图片 (Tileset Image)
             std::string image_path = tileset.value("image", "");
-            if (image_path.empty()) return make_empty_tile();
+            if (image_path.empty()) return make_empty_data();
 
-            // 获取图片路径
             auto texture_id = resolvePath(image_path, file_path);
             
-            // 安全获取 columns，防止除零错误
             int columns = tileset.value("columns", 0);
             if (columns <= 0) {
                  int image_width = tileset.value("imagewidth", 0);
                  int tile_width = tileset.value("tilewidth", tile_size_.x > 0 ? tile_size_.x : 16);
-                 if (tile_width > 0 && image_width > 0) columns = image_width / tile_width;
-                 else columns = 1; // Fallback
+                 columns = (tile_width > 0 && image_width > 0) ? image_width / tile_width : 1;
             }
 
-            // 计算瓦片在图片网格中的坐标
             auto coordinate_x = local_id % columns;
             auto coordinate_y = local_id / columns;
             
-            // 根据坐标确定源矩形
             SDL_FRect texture_rect = {
                 static_cast<float>(coordinate_x * tile_size_.x),
                 static_cast<float>(coordinate_y * tile_size_.y),
                 static_cast<float>(tile_size_.x),
                 static_cast<float>(tile_size_.y)
             };
-            engine::render::Sprite sprite{ texture_id, texture_rect };
-            auto tile_type = getTileTypeById(tileset, local_id);
-			return engine::component::TileInfo(sprite, tile_type);
-        }
-        else {   // Case 2: 多图片集合 (Collection of Images)，例如每个瓦片是单独的文件
-            if (!tileset.contains("tiles")) {   
-                return make_empty_tile();
-            }
-            const auto& tiles_json = tileset["tiles"];
             
-            // 标准 Tiled JSON 中 tiles 是数组
-            if (tiles_json.is_array()) {
-                for (const auto& tile_json : tiles_json) {
-                    auto tile_id = tile_json.value("id", -1);
-                    if (tile_id == local_id) {   
-                        if (!tile_json.contains("image")) return make_empty_tile(); // 仅有数据无图的瓦片
-
-                        std::string image_path = tile_json.value("image", "");
-                        auto texture_id = resolvePath(image_path, file_path);
-                        
-                        auto image_width = tile_json.value("imagewidth", 0);
-                        auto image_height = tile_json.value("imageheight", 0);
-                        
-                        SDL_FRect texture_rect = {
-                            static_cast<float>(tile_json.value("x", 0)),
-                            static_cast<float>(tile_json.value("y", 0)),
-                            static_cast<float>(tile_json.value("width", image_width)),    
-                            static_cast<float>(tile_json.value("height", image_height))
-                        };
-                        engine::render::Sprite sprite{ texture_id, texture_rect };
-                        auto tile_type = getTileType(tile_json);
-                        return engine::component::TileInfo(sprite, tile_type);
+            engine::render::Sprite sprite{ texture_id, texture_rect };
+            
+            // 查找瓦片的特定 JSON 配置用于获取类型和碰撞框
+            const nlohmann::json* tile_json = nullptr;
+            if (tileset.contains("tiles")) {
+                const auto& tiles_json = tileset["tiles"];
+                if (tiles_json.is_array()) {
+                    for (const auto& tj : tiles_json) {
+                        if (tj.value("id", -1) == local_id) {
+                            tile_json = &tj;
+                            break;
+                        }
                     }
                 }
             }
-            // 某些导出设置下 tiles 可能是对象 (ID -> TileObject)
-            else if (tiles_json.is_object()) {
-                 std::string id_str = std::to_string(local_id);
-                 if (tiles_json.contains(id_str)) {
-                     const auto& tile_json = tiles_json[id_str];
-                     if (tile_json.contains("image")) {
-                         std::string image_path = tile_json.value("image", "");
-                         auto texture_id = resolvePath(image_path, file_path);
-                         
-                         SDL_FRect texture_rect = {
-                             static_cast<float>(tile_json.value("x", 0)),
-                             static_cast<float>(tile_json.value("y", 0)),
-                             static_cast<float>(tile_json.value("width", tile_json.value("imagewidth", 0))),
-                             static_cast<float>(tile_json.value("height", tile_json.value("imageheight", 0)))
-                         };
-                         engine::render::Sprite sprite{ texture_id, texture_rect };
-                         return engine::component::TileInfo(sprite, engine::component::TileType::NORMAL);
-                     }
-                 }
+
+            auto tile_type = tile_json ? getTileType(*tile_json) : engine::component::TileType::NORMAL;
+            return TileData{ engine::component::TileInfo(sprite, tile_type), tile_json };
+        }
+        else {
+            // Case 2: 多图片集合
+            if (tileset.contains("tiles")) {
+                const auto& tiles_json = tileset["tiles"];
+                if (tiles_json.is_array()) {
+                    for (const auto& tile_json : tiles_json) {
+                        if (tile_json.value("id", -1) == local_id) {
+                            if (!tile_json.contains("image")) return make_empty_data();
+
+                            std::string image_path = tile_json.value("image", "");
+                            auto texture_id = resolvePath(image_path, file_path);
+                            
+                            SDL_FRect texture_rect = {
+                                static_cast<float>(tile_json.value("x", 0)),
+                                static_cast<float>(tile_json.value("y", 0)),
+                                static_cast<float>(tile_json.value("width", tile_json.value("imagewidth", 0))),    
+                                static_cast<float>(tile_json.value("height", tile_json.value("imageheight", 0)))
+                            };
+                            return TileData{ engine::component::TileInfo(engine::render::Sprite{ texture_id, texture_rect }, getTileType(tile_json)), &tile_json };
+                        }
+                    }
+                }
             }
         }
         
-        // 如果能走到这里，说明查找失败，返回空瓦片而不是报错
-        return make_empty_tile();
+        return make_empty_data();
+    }
+
+    engine::component::TileInfo LevelLoader::getTileInfoByGid(int gid)
+    {
+        return getTileDataByGid(gid).info;
     }
 
     void LevelLoader::loadTileset(const std::string& tileset_path, int first_gid)
@@ -358,6 +411,21 @@ namespace engine::scene {
                 if (property.value("name", "") == "solid") {
                     return property.value("value", false) ? engine::component::TileType::SOLID : engine::component::TileType::NORMAL;
                 }
+                else if (property.value("name", "") == "unisolid") {
+                    return property.value("value", false) ? engine::component::TileType::UNISOLID : engine::component::TileType::NORMAL;
+                }
+                else if (property.value("name", "") == "slope") {
+                    std::string type_str = property.value("value", "");
+                    // tileset.tsj 
+                    // 
+                    // 
+                    if (type_str == "0_1" || type_str == "slope_0_1") return engine::component::TileType::SLOPE_0_1;
+                    else if (type_str == "1_0" || type_str == "slope_1_0") return engine::component::TileType::SLOPE_1_0;
+                    else if (type_str == "0_2" || type_str == "slope_0_2") return engine::component::TileType::SLOPE_0_2;
+                    else if (type_str == "2_1" || type_str == "slope_2_1") return engine::component::TileType::SLOPE_2_1;
+                    else if (type_str == "1_2" || type_str == "slope_1_2") return engine::component::TileType::SLOPE_1_2;
+                    else if (type_str == "2_0" || type_str == "slope_2_0") return engine::component::TileType::SLOPE_2_0;
+                }
             }
         }
         return engine::component::TileType::NORMAL;
@@ -373,6 +441,27 @@ namespace engine::scene {
             }
         }
         return engine::component::TileType::NORMAL;
+    }
+
+    std::optional<engine::utils::Rect> LevelLoader::getCollisionRect(const nlohmann::json* tile_json) const
+    {
+        if (!tile_json || !tile_json->contains("objectgroup")) return std::nullopt;
+        auto& objectgroup = (*tile_json)["objectgroup"];
+        if (!objectgroup.contains("objects")) return std::nullopt;
+        auto& objects = objectgroup["objects"];
+        for (const auto& object : objects) {
+            auto rect = engine::utils::Rect(glm::vec2(object.value("x", 0.0f), object.value("y", 0.0f)),
+                glm::vec2(object.value("width", 0.0f), object.value("height", 0.0f)));
+            if (rect.size.x > 0 && rect.size.y > 0) {
+                return rect;
+            }
+        }
+        return std::nullopt;
+    }
+
+    const nlohmann::json* LevelLoader::getTileJsonByGid(int gid)
+    {
+        return getTileDataByGid(gid).json_ptr;
     }
 
 } // namespace engine::scene

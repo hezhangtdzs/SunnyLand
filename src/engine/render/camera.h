@@ -3,6 +3,10 @@
 #include <optional>
 #include <spdlog/spdlog.h>
 
+namespace engine::component {
+	class TransformComponent;
+}
+
 /**
  * @namespace engine::render
  * @brief 包含所有与渲染相关的引擎组件。
@@ -22,6 +26,8 @@ namespace engine::render {
 		glm::vec2 position_;
 		/// 摄像机的可选移动边界限制
 		std::optional<engine::utils::Rect> limit_bounds_;
+		float smooth_speed_ = 5.0f;
+		engine::component::TransformComponent* target_ = nullptr; // 跟随目标
 
 	public:
 		/**
@@ -113,6 +119,28 @@ namespace engine::render {
 		 * @return glm::vec2 (宽, 高)。
 		 */
 		glm::vec2 getViewportSize() const;
+
+		/**
+		 * @brief 设置摄像机的跟随目标。
+		 * @param target 要跟随的 Transform 组件指针。
+		 */
+		void setTarget(engine::component::TransformComponent* target);
+		/**
+		 * @brief 获取当前的跟随目标。
+		 * @return engine::component::TransformComponent* 跟随目标指针。
+		 */
+		engine::component::TransformComponent* getTarget() const;
+		/**
+		 * @brief 设置摄像机的平滑移动速度。
+		 * @param speed 平滑速度系数。
+		 */
+		void setSmoothSpeed(float speed);
+		/**
+		 * @brief 获取摄像机的平滑移动速度。
+		 * @return float 平滑速度系数。
+		 */
+		float getSmoothSpeed() const;
+
 
 		// 禁用拷贝和移动语义以防止对象不一致
 		Camera(const Camera&) = delete;

@@ -13,7 +13,7 @@ namespace game::scene {
      * @brief 主要的游戏场景，包含玩家、敌人、关卡元素等。
      */
     class GameScene final : public engine::scene::Scene {
-		engine::object::GameObject* test_object_{ nullptr }; ///< 测试用的游戏对象指针
+		engine::object::GameObject* player_{ nullptr }; ///< 测试用的游戏对象指针
     public:
         GameScene(std::string name, engine::core::Context& context, engine::scene::SceneManager& scene_manager);
 
@@ -25,10 +25,8 @@ namespace game::scene {
         void clean() override;
 
     private:
-        // 测试函数
-        void createTestObject();
-        void processTestObjectInput();
-		void TestCollisionPairs();
+        [[nodiscard]] bool initLevel();               ///< @brief 初始化关卡
+        [[nodiscard]] bool initPlayer();              ///< @brief 初始化玩家
     };
 
 } // namespace game::scene

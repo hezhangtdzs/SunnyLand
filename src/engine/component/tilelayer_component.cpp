@@ -89,8 +89,11 @@ void engine::component::TileLayerComponent::render(engine::core::Context& contex
 	}
 
 	// 计算视野范围对应的网格坐标 (包含一些冗余量以防边缘闪烁)
-	glm::ivec2 start_tile = glm::floor((cam_pos - layer_world_offset) / glm::vec2(tile_size_));
-	glm::ivec2 end_tile = glm::ceil((cam_pos + cam_size - layer_world_offset) / glm::vec2(tile_size_));
+    // 增加渲染范围冗余量，已修正：处理超大图块（如树木、建筑）和负高度偏移
+    // 某些大图块的锚点在网格内，但图像延伸出网格很远。如果只渲染视口内的网格，会导致这些大图块也被剔除。
+    const int extra_padding = 20; 
+	glm::ivec2 start_tile = glm::ivec2(glm::floor((cam_pos - layer_world_offset) / glm::vec2(tile_size_))) - glm::ivec2(extra_padding);
+	glm::ivec2 end_tile = glm::ivec2(glm::ceil((cam_pos + cam_size - layer_world_offset) / glm::vec2(tile_size_))) + glm::ivec2(extra_padding);
 
 	// 限制坐标在地图有效范围内 (Intersection)
 	start_tile = glm::max(start_tile, glm::ivec2(0));
@@ -118,7 +121,14 @@ void engine::component::TileLayerComponent::render(engine::core::Context& contex
 					tile_world_pos.y -= (sprite_h - static_cast<float>(tile_size_.y));
 				}
 
-				renderer.drawSprite(camera, tile.sprite, tile_world_pos, glm::vec2(1.0f, 1.0f));
+				// 仅对瓦片大小的 sprite 做轻微重叠，避免在大图块（树/装饰物）上被放大导致边界判断异常
+				glm::vec2 scale(1.0f, 1.0f);
+				if (std::abs(sprite_h - tile_size_.y) <= 0.1f) {
+					float overlap_epsilon = 0.2f;
+					scale.x = (static_cast<float>(tile_size_.x) + overlap_epsilon) / static_cast<float>(tile_size_.x);
+					scale.y = (static_cast<float>(tile_size_.y) + overlap_epsilon) / static_cast<float>(tile_size_.y);
+				}
+				renderer.drawSprite(camera, tile.sprite, tile_world_pos, scale);
 			}
 		}
 	}

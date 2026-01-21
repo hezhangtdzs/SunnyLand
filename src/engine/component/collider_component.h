@@ -21,12 +21,12 @@ namespace engine::component {
 		std::unique_ptr<engine::physics::Collider> collider_{ nullptr }; ///< 指向碰撞体的指针
 
 		glm::vec2 offset_{ 0.0f, 0.0f }; ///< 碰撞体相对于变换组件位置的偏移
-		engine::utils::Alignment alignment_{ engine::utils::Alignment::CENTER }; ///< 碰撞体对齐方式
+		engine::utils::Alignment alignment_{ engine::utils::Alignment::TOP_LEFT }; ///< 碰撞体对齐方式
 		bool is_trigger_{ false }; ///< 是否为触发器（Trigger）
 		bool is_active_{ true }; ///< 碰撞体是否启用
 
 	public:
-		explicit ColliderComponent(std::unique_ptr<engine::physics::Collider> collider, engine::utils::Alignment alignment, bool is_trigger=false,bool is_active = true);
+		explicit ColliderComponent(std::unique_ptr<engine::physics::Collider> collider, engine::utils::Alignment alignment = engine::utils::Alignment::TOP_LEFT, bool is_trigger=false,bool is_active = true);
 		~ColliderComponent() override = default;
 		ColliderComponent(const ColliderComponent&) = delete;
 		ColliderComponent& operator=(const ColliderComponent&) = delete;

@@ -82,7 +82,16 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/engine/component/collider_component.h"
                           "src/engine/component/collider_component.cpp"
                           "src/engine/physics/collision.h"
-                          "src/engine/physics/collision.cpp")
+                          "src/engine/physics/collision.cpp"
+                          "src/game/component/state/player_state.h" 
+                          "src/game/component/player_component.h" 
+                          "src/game/component/player_component.cpp" 
+                          "src/game/component/state/idle_state.h" 
+                          "src/game/component/state/idle_state.cpp" 
+                          "src/game/component/state/walk_state.h" 
+                          "src/game/component/state/walk_state.cpp" 
+                          "src/game/component/state/jump_state.h" 
+                          "src/game/component/state/jump_state.cpp" "src/game/component/state/Fall_state.h" "src/game/component/state/Fall_state.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}

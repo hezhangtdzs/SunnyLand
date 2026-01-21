@@ -57,6 +57,14 @@ namespace engine::render {
         // 应用相机变换
         glm::vec2 position_screen = camera.worldToScreen(position);
 
+        // 移除：强制取整导致的移动抖动
+        /*
+        #if 1
+        position_screen.x = std::floor(position_screen.x);
+        position_screen.y = std::floor(position_screen.y);
+        #endif
+        */
+
         // 计算目标矩形，注意 position 是精灵的左上角坐标
         float scaled_w = src_rect.value().w * scale.x;
         float scaled_h = src_rect.value().h * scale.y;
@@ -136,7 +144,11 @@ namespace engine::render {
 
         for (float y = start.y; y < stop.y; y += scaled_h) {
             for (float x = start.x; x < stop.x; x += scaled_w) {
-                SDL_FRect dest_rect = { x, y, scaled_w, scaled_h };
+                // 移除：强制取整导致的移动抖动
+                // 为防止白线，适当向上取整尺寸(ceil)或者保持浮点精度并确保覆盖
+                // 这里恢复为浮点并在尺寸上增加微小重叠(epsilon)以消除缝隙
+                SDL_FRect dest_rect = { x, y, scaled_w + 0.1f, scaled_h + 0.1f };
+                
                 if (!SDL_RenderTexture(renderer_, texture, nullptr, &dest_rect)) {
                     spdlog::error("渲染视差纹理失败（ID: {}）：{}", sprite.getTextureId(), SDL_GetError());
                     return;
@@ -254,13 +266,39 @@ namespace engine::render {
      */
     bool Renderer::isRectInViewport(const Camera& camera, const SDL_FRect& rect) {
         glm::vec2 viewport_size = camera.getViewportSize();
-        // 既然 rect 已经是屏幕坐标，那么视口矩形在屏幕空间中就是从 (0,0) 到 viewport_size
-        SDL_FRect viewport_rect = { 0.0f, 0.0f, viewport_size.x, viewport_size.y };
         
-        bool no_overlap = rect.x + rect.w < viewport_rect.x ||
-                          rect.x > viewport_rect.x + viewport_rect.w ||
-                          rect.y + rect.h < viewport_rect.y ||
-                          rect.y > viewport_rect.y + viewport_rect.h;
+        // 扩大裁剪边距以解决：
+        // 1. 旋转精灵的包围盒比原始矩形大，可能导致边缘处被错误裁剪
+        // 2. 负缩放导致的负宽高矩形在简单比较下判定错误
+        // 3. 浮点误差
+        constexpr float cull_margin = 128.0f;
+        SDL_FRect viewport_rect = {
+            -cull_margin,
+            -cull_margin,
+            viewport_size.x + cull_margin * 2.0f,
+            viewport_size.y + cull_margin * 2.0f
+        };
+
+        // 归一化矩形（处理负宽高的情况）
+        float r_x = rect.x;
+        float r_y = rect.y;
+        float r_w = rect.w;
+        float r_h = rect.h;
+
+        if (r_w < 0) {
+            r_x += r_w;
+            r_w = -r_w;
+        }
+        if (r_h < 0) {
+            r_y += r_h;
+            r_h = -r_h;
+        }
+
+        // 执行 AABB 相交检测
+        bool no_overlap = r_x + r_w <= viewport_rect.x ||
+                          r_x >= viewport_rect.x + viewport_rect.w ||
+                          r_y + r_h <= viewport_rect.y ||
+                          r_y >= viewport_rect.y + viewport_rect.h;
         return !no_overlap;
 	}
 }
