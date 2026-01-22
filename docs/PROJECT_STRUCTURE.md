@@ -1,5 +1,27 @@
 # 项目结构与调用流程 (Project Structure and Call Flow)
 
+## 项目概述 (Project Overview)
+
+本项目是一个基于 **C++23** 开发的 2D 游戏引擎，采用现代化的 **组件化架构 (Component-Based Architecture)**。引擎设计遵循以下核心原则：
+
+- **组合优于继承**: 通过组件组合实现游戏对象的功能
+- **数据驱动**: 使用 JSON 配置文件和 Tiled 地图编辑器进行关卡设计
+- **资源共享**: 通过智能指针管理资源生命周期，避免重复加载
+- **安全的内存管理**: 延迟对象添加/删除，避免迭代器失效
+
+### 技术栈 (Tech Stack)
+
+| 技术 | 版本 | 用途 |
+|:---|:---|:---|
+| **C++** | C++23 | 主开发语言 |
+| **CMake** | 3.0+ | 构建系统 |
+| **SDL3** | 最新版 | 窗口管理、输入、渲染 |
+| **GLM** | - | 数学库（向量、矩阵） |
+| **nlohmann/json** | - | JSON 解析 |
+| **spdlog** | - | 日志系统 |
+| **Tiled** | - | 地图编辑器 |
+| **Physics (Custom)** | - | 轻量 2D 物理（重力/速度/受力积分） |
+
 ## 核心类图 (Core Class Diagram)
 
 ```mermaid
@@ -35,7 +57,33 @@ classDiagram
         +loadLevel(string, Scene&)
         -loadImageLayer(...)
         -loadTileLayer(...)
+        -loadObjectLayer(...)
         -loadTileset(...)
+        -addAnimationFromTileJson(AnimationComponent*, json, vec2)
+    }
+
+    class AnimationFrame {
+        +src_rect : SDL_Rect
+        +duration : float
+    }
+
+    class Animation {
+        -name_ : string
+        -frames_ : vector<AnimationFrame>
+        -total_duration_ : float
+        -loop_ : bool
+        +addFrame(SDL_FRect, duration)
+        +getFrame(time)
+    }
+
+    class AnimationComponent {
+        -animations_ : map<string, unique_ptr<Animation>>
+        -current_animation_ : Animation*
+        -animation_timer_ : float
+        -is_playing_ : bool
+        +addAnimation(unique_ptr<Animation>)
+        +playAnimation(name)
+        +isAnimationFinished()
     }
 
     class GameObject {
@@ -57,7 +105,9 @@ classDiagram
         -tile_size_ : ivec2
         -map_size_ : ivec2
         -tiles_ : vector<TileInfo>
+        -offset_ : vec2
         +render(Context&)
+        +getTileTypeAtWorldPos(vec2)
     }
 
     class TransformComponent {
@@ -83,6 +133,106 @@ classDiagram
         -camera_ : Camera&
         -resource_manager_ : ResourceManager&
         -input_manager_ : InputManager&
+        -physics_engine_ : PhysicsEngine&
+    }
+
+    class PhysicsEngine {
+        -physics_components_ : vector<PhysicsComponent*>
+        -collision_pairs_ : vector<pair<GameObject*, GameObject*>>
+        -gravity_ : vec2
+        -max_speed_ : float
+        +update(dt)
+        +resolveTileCollisions(PhysicsComponent*, dt)
+        +registerPhysicsComponent(PhysicsComponent*)
+        +unregisterPhysicsComponent(PhysicsComponent*)
+        +getCollisionPairs()
+    }
+
+    class ColliderComponent {
+        -collider_ : unique_ptr<Collider>
+        -offset_ : vec2
+        -alignment_ : Alignment
+        +getWorldAABB()
+        +getCollider()
+    }
+
+    class Collider {
+        +getType()
+        +getAABBSize()
+    }
+
+    class AABBCollider {
+        +getType()
+    }
+
+    class CircleCollider {
+        +getType()
+        +getRadius()
+    }
+
+    class PhysicsComponent {
+        -mass_ : float
+        -use_gravity_ : bool
+        -force_ : vec2
+        -velocity_ : vec2
+        -collided_below_ : bool
+        -collided_above_ : bool
+        -collided_left_ : bool
+        -collided_right_ : bool
+        +addForce(vec2)
+        +setVelocity(vec2)
+        +setMass(float)
+        +setUseGravity(bool)
+        +hasCollidedBelow() : bool
+        +hasCollidedAbove() : bool
+        +hasCollidedLeft() : bool
+        +hasCollidedRight() : bool
+    }
+
+    class PlayerComponent {
+        -current_state_ : unique_ptr<PlayerState>
+        -is_dead_ : bool
+        -move_force_ : float
+        -jump_force_ : float
+        +setState(unique_ptr<PlayerState>)
+        +processMovementInput(Context&, float)
+    }
+
+    class PlayerState {
+        <<abstract>>
+        #player_component_ : PlayerComponent*
+        +enter()*
+        +exit()*
+        +handleInput(Context&)*
+        +update(dt, Context&)*
+    }
+
+    class IdleState {
+        +enter()
+        +exit()
+        +handleInput()
+        +update()
+    }
+
+    class WalkState {
+        +enter()
+        +exit()
+        +handleInput()
+        +update()
+    }
+
+    class JumpState {
+        +enter()
+        +exit()
+        +handleInput()
+        +update()
+    }
+
+    class FallState {
+        +enter()
+        +exit()
+        +handleInput()
+        +update()
     }
 
     class InputManager {
@@ -109,9 +259,29 @@ classDiagram
     Component <|-- SpriteComponent
     Component <|-- ParallaxComponent
     Component <|-- TileLayerComponent
+    Component <|-- PhysicsComponent
+    Component <|-- ColliderComponent
+    Component <|-- PlayerComponent
+    Component <|-- AnimationComponent
+    AnimationComponent "1" *-- "many" Animation
+    Animation "1" *-- "many" AnimationFrame
+    AnimationComponent ..> SpriteComponent : 驱动切片切换
+    PlayerComponent "1" *-- "1" PlayerState
+    PlayerState <|-- IdleState
+    PlayerState <|-- WalkState
+    PlayerState <|-- JumpState
+    PlayerState <|-- FallState
+    Collider <|-- AABBCollider
+    Collider <|-- CircleCollider
     SpriteComponent ..> TransformComponent : 依赖位置
     ParallaxComponent ..> TransformComponent : 依赖位置
     Scene ..> Context : 系统资源访问
+    PhysicsComponent ..> TransformComponent : 写入位置
+    PhysicsComponent ..> PhysicsEngine : 注册更新
+    PhysicsEngine ..> PhysicsComponent : 管理更新列表
+    ColliderComponent ..> TransformComponent : 提供世界坐标AABB
+    PhysicsEngine ..> ColliderComponent : 碰撞检测
+    PhysicsEngine ..> TileLayerComponent : 瓦片碰撞分离
 ```
 
 ## 主循环调用流程 (Main Loop Sequence)
@@ -127,6 +297,9 @@ sequenceDiagram
     loop 每一帧 (Each Frame)
         App->>SM: update(dt)
         SM->>Scene: update(dt)
+        Note over Scene: Scene 会先更新 PhysicsEngine（力积分/速度更新/瓦片碰撞分离/对象碰撞检测）
+        Scene->>Context: getPhysicsEngine()
+        Context->>PhysicsEngine: update(dt)
         loop 每个对象
             Scene->>GO: update(dt, context)
             GO->>Comp: update(dt, context)
@@ -152,12 +325,27 @@ src/
 │   ├── scene/          # 场景管理 (Scene, SceneManager, LevelLoader)
 │   ├── object/         # 游戏实体 (GameObject)
 │   ├── component/      # 组件系统 (Transform, Sprite, Parallax, TileLayer)
+│   ├── physics/         # 物理系统 (PhysicsEngine)
 │   ├── render/         # 渲染基础 (Renderer, Camera, Sprite)
 │   ├── resource/       # 资源管理 (Texture, Font, Sound)
 │   ├── input/          # 输入系统 (InputManager)
 │   └── utils/          # 工具类 (Alignment, Math)
 └── game/               # 游戏业务逻辑
-    └── scene/          # 具体场景实现 (GameScene)
+├── scene/          # 具体场景实现 (GameScene)
+└── component/      # 游戏特定的组件 (PlayerComponent, State Machine)
+
+assets/                 # 游戏资源
+├── config.json          # 输入映射、窗口参数等配置
+├── maps/                # Tiled 导出的地图（.tmj/.tsj）
+├── textures/            # 贴图资源
+├── fonts/               # 字体资源
+└── sounds/              # 音频资源
+
+docs/                   # 项目文档
+└── PROJECT_STRUCTURE.md # 本文档：结构、调用流程与约定
+
+out/                    # CMake 默认构建输出（由 IDE/生成器产生）
+└── build/<config>/      # 例如 x64-debug, x64-release
 ```
 
 ## 关键机制说明 (Key Mechanisms)
@@ -189,6 +377,7 @@ src/
 - **图层解析**: 
     - `Image Layer` -> `ParallaxComponent` (支持部分滚动因子，用于远景)。
     - `Tile Layer` -> `TileLayerComponent` (支持剔除渲染与对齐修正)。
+    - `Object Layer` -> `GameObject` (将Tiled对象实例化为带`Transform`, `Sprite`组件的实体)。
 - **路径解析**: 自动处理相对路径，确保纹理资源正确加载。
 
 ### 7. 视差滚动 (Parallax Scrolling)
@@ -196,7 +385,108 @@ src/
 - **视差因子 (Factor)**: 通过 `parallax_factor_` 控制背景随相机移动的速度（例如 `0.2` 表示背景移动速度是相机的 0.2 倍，产生远景效果）。
 - **Offset 支持**: 正确处理 Tiled 中的 `offsetx/offsety` 偏移量。
 
----
+### 8. 动画系统 (Animation System)
+- **基于时间的播放**: 动画逻辑与帧率无关。`AnimationComponent` 通过累计 `delta_time` 并在 `Animation` 对象中检索对应时刻的 `AnimationFrame`。
+- **循环控制**: 
+    - 循环动画使用 `fmod` 处理溢出时间，确保循环逻辑无漂移。
+    - 非循环动画在到达 `total_duration` 后会自动停止并锁定在最后一帧，避免出现闪烁回到第一帧的 Bug。
+- **数据驱动**: 动画数据可以直接定义在 Tiled 的 Tileset 属性中（JSON 字符串格式），由 `LevelLoader` 自动解析并挂载。
+- **与 Sprite 交互**: `AnimationComponent` 每帧计算出当前的 `src_rect` 后，直接调用 `SpriteComponent::setSourceRect()` 更新渲染内容。
+
+### 9. 物理系统 (Physics)
+
+- **PhysicsEngine**: 维护所有 `PhysicsComponent` 的注册列表，并在每帧统一调用 `update(dt)`。
+- **PhysicsComponent**: 作为组件挂载到 `GameObject` 上，内部持有速度、受力、质量等数据，并在 `init/clean` 时向 `PhysicsEngine` 注册/注销。
+
+#### 更新顺序
+
+- 当前引擎实现中，`Scene::update(dt)` 会最先调用 `context_.getPhysicsEngine().update(dt)`，随后再更新每个 `GameObject` 的逻辑组件。
+
+#### 单位约定
+
+- `Time::getDeltaTime()` 输出单位为 **秒 (s)**。
+- `PhysicsEngine` 内的 `gravity_` 以 **像素/秒²** 表示（默认约 `980`）。
+- `PhysicsComponent::velocity_` 以 **像素/秒** 表示。
+
+#### 当前限制（后续可扩展）
+
+- 目前已实现 **基础碰撞检测**：`PhysicsEngine` 在 `update(dt)` 末尾执行 `checkObjectCollisions()`，对注册的物理对象两两检测碰撞。
+- 碰撞基于 `ColliderComponent` + `engine::physics::collision::checkCollision()`：
+  - 先做世界坐标 AABB 粗检（broad-phase）
+  - 通过碰撞体类型再做细检（narrow-phase）：AABB/AABB、Circle/Circle、AABB/Circle
+- 检测结果会写入 `PhysicsEngine::collision_pairs_`，并可通过 `PhysicsEngine::getCollisionPairs()` 读取（用于调试/测试）。
+
+此外已实现 **瓦片碰撞分离（Tile collision resolve）**：
+
+- `PhysicsEngine::update(dt)` 在对每个 `PhysicsComponent` 积分速度后调用 `resolveTileCollisions(pc, dt)`。
+- `resolveTileCollisions()` 会根据物体的 `ColliderComponent` 世界 AABB 与 `TileLayerComponent` 的 SOLID 瓦片进行分离：
+  - 采用 **分离轴 sweep**（先 X 后 Y）避免角落处左右方向表现不一致。
+  - 采用对称 `eps`（很小值）对 AABB 边界向内缩，避免 `floor()` 带来的左右/上下取整不对称。
+  - 采样瓦片坐标时使用与 `TileLayerComponent::getTileTypeAtWorldPos()` 一致的世界偏移：`layer->getOffset() + layer_owner->Transform.position`，避免渲染与碰撞坐标系不一致。
+  - 发生碰撞时将对应轴速度分量置零（例如撞墙清零 `velocity_.x`，落地清零 `velocity_.y`）。
+
+#### 调试用例（GameScene）
+
+`game::scene::GameScene` 内置了一个简单的碰撞测试用例（便于快速验证碰撞检测链路）：
+
+- `test_object`：受重力影响的箱子，带 `AABBCollider(32x32)`
+- `test_object2`：静止物体，不受重力，带 `CircleCollider(radius=16)`
+
+在 `GameScene::update()` 中会调用 `TestCollisionPairs()`，每帧遍历并打印 `PhysicsEngine::getCollisionPairs()`。
+
+### 10. 碰撞系统 (Collision)
+
+- **Collider / ColliderType**：形状定义，当前支持 `AABB` 与 `CIRCLE`。
+- **ColliderComponent**：挂载到 `GameObject` 上，持有 `Collider`，并可计算世界坐标 AABB（`getWorldAABB()`）。
+- **collision 命名空间**：提供检测函数（`checkCollision`、`checkAABBOverlap`、`checkCircleOverlap`、`checkPointInCircle` 等）。
+- **接入点**：`PhysicsEngine::checkObjectCollisions()` 调用 `collision::checkCollision()`，并记录碰撞对到 `collision_pairs_`。
+
+### 11. Transform / Alignment 约定（渲染与碰撞坐标基准）
+
+本项目中多个组件都会把 `TransformComponent::position` 当作“锚点”，其实际世界左上角由各组件的 `Alignment` 计算出的 `offset_` 决定：
+
+- `SpriteComponent::render()` 使用 `draw_pos = transform_pos + sprite_offset_`。
+- `ColliderComponent::getWorldAABB()` 使用 `aabb_top_left = transform_pos + collider_offset_`。
+
+注意：
+
+- `SpriteComponent` 的默认 `alignment` 为 `Alignment::NONE`，在现实现中等价于不做偏移（`offset_ = (0,0)`），也就是把 `Transform.position` 当作贴图左上角。
+- `ColliderComponent` 若设置为 `Alignment::CENTER`，会产生 `offset_ = (-w/2, -h/2)`，此时 `Transform.position` 被当作碰撞盒中心。
+
+因此如果只把 Collider 改为 `CENTER` 而 Sprite 仍为默认 `NONE`，会出现“碰撞盒贴地但贴图嵌入地面/错位”的视觉现象。
+
+建议：
+
+- 让 `SpriteComponent` 与 `ColliderComponent` 使用一致的 `Alignment`（例如都用 `TOP_LEFT` 或都用 `CENTER`）。
+- 或制定全局约定：`Transform.position` 永远表示左上角/永远表示中心，并让所有组件遵循。
+
+### 12. 玩家状态机 (Player State Machine)
+
+本项目使用 **状态模式 (State Pattern)** 管理玩家的复杂行为逻辑。
+
+- **PlayerComponent**: 玩家的核心组件，持有当前状态 (`current_state_`) 和物理属性（速度参数、跳跃力等）。
+  - 提供 `setState()` 切换状态（自动调用 `exit()` 和 `enter()`）。
+  - 提供 `processMovementInput()` 辅助函数，供各状态调用以处理通用的左右移动逻辑（施加力、翻转精灵、处理转向瞬间的速度归零）。
+
+- **PlayerState**: 所有玩家状态的基类 (抽象类)。
+  - `enter()`: 进入状态时调用（初始化动画、重置变量）。
+  - `exit()`: 退出状态时调用（清理）。
+  - `handleInput()`: 处理输入，返回新状态（`unique_ptr`）或 `nullptr`（保持当前状态）。
+  - `update()`: 帧更新逻辑，处理物理检测、自动状态切换（如落地、起跳）。
+
+- **具体状态**:
+  - `IdleState`: 待机状态。检测移动输入切换 `WalkState`，检测跳跃切换 `JumpState`，检测下落。
+  - `WalkState`: 移动状态。处理移动输入，检测停止输入回 `IdleState`。
+  - `JumpState`: 跳跃上升状态。进入时施加向上速度。空中可移动。检测 Y 轴速度向下切换 `FallState`。
+  - `FallState`: 下落状态。空中可移动。检测地面碰撞 (`hasCollidedBelow`) 切换 `Idle/Walk`。
+
+### 13. 状态机与物理系统的交互 (Physics & State Machine Interaction)
+
+- **碰撞标记 (Collision Flags)**: `PhysicsComponent` 实时维护四个方向的碰撞标记：`below`, `above`, `left`, `right`。
+- **状态切换依据**: 
+  - `IdleState` 和 `WalkState` 会每帧检查 `!hasCollidedBelow()`，如果为真则代表玩家悬空，立即切换到 `FallState`。
+  - `FallState` 会每帧检查 `hasCollidedBelow()`，如果为真则代表玩家落地，立即切换到 `IdleState` 或 `WalkState`。
+- **输入处理辅助**: `PlayerComponent::processMovementInput()` 封装了左右移动的力学逻辑。在空中状态（`Jump/Fall`）调用时通常会传入较小的速度系数（如 `0.5f`）以实现受限的空中控制。
 
 ## 开发规范 (Development Guidelines)
 
@@ -210,28 +500,169 @@ src/
 - 逻辑代码写在 `update()` 中，渲染代码写在 `render()` 中。
 - 获取同对象的其他组件请使用 `owner_->getComponent<T>()`。
 
+### 4. 使用 PhysicsComponent（示例）
+
+- 给对象添加物理：`addComponent<PhysicsComponent>(&context_.getPhysicsEngine())`
+- 关闭重力：`setUseGravity(false)`
+- 施加一次性力：`addForce(...)`（会在该帧计算完后清空）
+- 直接设置速度：`setVelocity(...)`（用于跳跃/冲量类效果）
+
 ### 3. 性能优化
 - **避免在每帧 `update` 中分配内存**: 尽量复用对象。
 - **批量渲染**: 相同纹理的对象尽量连续渲染（后续计划）。
 - **资源预加载**: 在 `Scene::init()` 中一次性加载场景所需资源。
 
-## 关键系统说明 (Key System Descriptions)
+---
 
-| 系统名称 | 职责描述 | 核心函数 |
-| :--- | :--- | :--- |
-| **GameApp** | 引擎入口，管理生命周期。 | `run()`, `init()`, `close()` |
-| **GameObject** | 游戏实体，通过组合不同的组件来实现特定功能。 | `addComponent()`, `update()`, `render()` |
-| **LevelLoader** | **关卡加载器**，负责解析 Tiled JSON 地图并实例化游戏对象。 | `loadLevel()`, `loadImageLayer()` |
-| **Component** | 组件基类，定义了游戏逻辑和渲染的统一接口。 | `init()`, `update()`, `render()` |
-| **TransformComponent** | **最基础组件**，管理对象的位置、旋转、缩放。 | `getPosition()`, `setScale()` |
-| **SpriteComponent** | 渲染组件，负责根据 Transform 的信息绘制图片。 | `render()`, `updateOffset()` |
-| **ParallaxComponent** | **视差组件**，用于渲染具有视差效果的背景层。 | `render()`, `getParallaxFactor()` |
-| **TileLayerComponent** | **瓦片图层组件**，高效渲染由大量瓦片构成的地图层。 | `render()`, `getTileAt()` |
-| **Renderer** | 绘图核心，封装对 SDL 渲染 API 的底层调用。 | `drawSprite()`, `clearScreen()` |
-| **ResourceManager**| 资源管家，负责图片、字体、声音的加载与缓存。 | `getTexture()`, `getFont()` |
+## 项目约定 (Conventions)
+
+### 命名规范
+- **类名**: `PascalCase` (如 `GameObject`, `SpriteComponent`)
+- **函数名**: `camelCase` (如 `addComponent()`, `getPosition()`)
+- **成员变量**: `snake_case_` 带下划线后缀 (如 `position_`, `sprite_`)
+- **常量**: `UPPER_SNAKE_CASE` (如 `MAX_SPEED`)
+
+### 文件组织
+- 头文件: `.h`
+- 实现文件: `.cpp`
+- 每个类一个文件
+- 文件名与类名一致（snake_case）
+
+### 资源路径
+- 所有资源路径相对于**项目根目录**
+- 纹理: `assets/textures/`
+- 地图: `assets/maps/`
+- 音频: `assets/sounds/` 和 `assets/music/`
+- 字体: `assets/fonts/`
+- 配置: `assets/config.json`
+
+### 组件依赖
+- **TransformComponent**: 基础组件，几乎所有对象都需要
+- **SpriteComponent**: 依赖 `TransformComponent`
+- **ParallaxComponent**: 依赖 `TransformComponent`
+- **自定义组件**: 根据需要添加依赖
 
 ---
-*此文档为项目架构的唯一权威说明。*
+
+
+## 关键系统说明 (Key System Descriptions)
+
+| 系统名称 | 职责描述 | 核心函数 | 备注 |
+| :--- | :--- | :--- | :--- |
+| **GameApp** | 引擎入口，管理生命周期、主循环。 | `run()`, `init()`, `close()` | 单例模式 |
+| **GameObject** | 游戏实体，通过组合不同的组件来实现特定功能。 | `addComponent()`, `update()`, `render()`, `getComponent()` | 支持名称和标签 |
+| **LevelLoader** | **关卡加载器**，负责解析 Tiled JSON 地图并实例化游戏对象。 | `loadLevel()`, `loadImageLayer()`, `loadTileLayer()` | 支持 .tmj 和 .tsj |
+| **Component** | 组件基类，定义了游戏逻辑和渲染的统一接口。 | `init()`, `update()`, `render()` | 纯虚基类 |
+| **TransformComponent** | **最基础组件**，管理对象的位置、旋转、缩放。 | `getPosition()`, `setScale()`, `move()` | 必需组件 |
+| **SpriteComponent** | 渲染组件，负责根据 Transform 的信息绘制图片。 | `render()`, `updateOffset()`, `setAlignment()` | 依赖 Transform |
+| **ParallaxComponent** | **视差组件**，用于渲染具有视差效果的背景层。 | `render()`, `getParallaxFactor()` | 用于 Image Layer |
+| **TileLayerComponent** | **瓦片图层组件**，高效渲染由大量瓦片构成的地图层。 | `render()`, `getTileAt()` | 支持视口剔除 |
+| **SceneManager** | 场景管理器，负责场景栈的管理和切换。 | `requestPushScene()`, `requestReplaceScene()`, `requestPopScene()` | 延迟操作 |
+| **Scene** | 场景基类，容纳游戏对象。 | `init()`, `update()`, `render()`, `addGameObject()` | 抽象基类 |
+| **Renderer** | 绘图核心，封装对 SDL 渲染 API 的底层调用。 | `drawSprite()`, `clearScreen()`, `present()` | 单例模式 |
+| **ResourceManager**| 资源管家，负责图片、字体、声音的加载与缓存。 | `getTexture()`, `getFont()`, `getSound()` | 自动引用计数 |
+| **InputManager** | 输入管理器，处理键盘、鼠标、手柄输入。 | `isActionDown()`, `isActionPressed()`, `Update()` | 动作映射系统 |
+| **Camera** | 相机系统，控制视图位置。 | `move()`, `setPosition()`, `getPosition()` | 影响所有渲染 |
+| **Context** | 系统上下文，提供对各个管理器的访问。 | `getRenderer()`, `getCamera()`, `getResourceManager()` | 依赖注入 |
+| **PhysicsEngine** | 物理系统入口，统一更新所有物理组件并执行基础碰撞检测。 | `update()`, `registerPhysicsComponent()`, `getCollisionPairs()` | 记录碰撞对供调试 |
+| **ColliderComponent** | 碰撞组件，提供碰撞体形状并计算世界坐标 AABB。 | `getWorldAABB()`, `getCollider()` | 参与碰撞检测 |
+| **PhysicsComponent** | 物理组件，保存质量/速度/受力并影响 Transform。 | `addForce()`, `setVelocity()` | 由 PhysicsEngine 驱动 |
+| **PlayerComponent** | 玩家控制组件，通过状态机驱动玩家行为逻辑。 | `processMovementInput()`, `setState()` | 业务逻辑核心 |
+| **PlayerState** | 玩家状态抽象，定义了不同动作下的行为逻辑。 | `handleInput()`, `update()` | 状态模式实现 |
+
+---
+
+## 组件通信 (Component Communication)
+
+### 方式 1: 通过 GameObject 获取其他组件
+```cpp
+void MyComponent::update(float dt, engine::core::Context& ctx) {
+    // 获取同对象的其他组件
+    auto* transform = owner_->getComponent<TransformComponent>();
+    auto* sprite = owner_->getComponent<SpriteComponent>();
+    
+    if (transform && sprite) {
+        // 使用组件数据
+    }
+}
+```
+
+### 方式 2: 通过 Scene 查找对象
+```cpp
+// 在 Scene 中添加查找方法（需自行实现）
+GameObject* Scene::findGameObjectByName(const std::string& name);
+GameObject* Scene::findGameObjectByTag(const std::string& tag);
+std::vector<GameObject*> Scene::findGameObjectsByTag(const std::string& tag);
+```
+
+### 方式 3: 事件系统（可选扩展）
+```cpp
+// 未来可以添加事件总线模式
+EventBus::publish("player_died", player_data);
+EventBus::subscribe("player_died", [](auto data) { /* handle */ });
+```
+
+---
+
+## 生命周期详解 (Lifecycle Details)
+
+### GameObject 生命周期
+```
+创建 (new/make_unique)
+    ↓
+添加组件 (addComponent)
+    ↓
+添加到场景 (scene.addGameObject)
+    ↓
+初始化 (Component::init) - 在下一帧开始时
+    ↓
+每帧更新 (update) ←─┐
+    ↓                │
+每帧渲染 (render)    │
+    ↓                │
+检查移除标志 ────────┘
+    ↓
+标记为移除 (setNeedRemove)
+    ↓
+从场景移除并销毁 (在帧末尾)
+```
+
+### Scene 生命周期
+```
+创建场景 (make_unique<Scene>)
+    ↓
+请求切换 (SceneManager::requestReplaceScene)
+    ↓
+等待当前帧结束
+    ↓
+移除旧场景 (clean + 析构)
+    ↓
+添加新场景到栈
+    ↓
+初始化场景 (Scene::init)
+    ↓
+进入主循环 (update/render)
+```
+
+### Component 生命周期
+```
+创建 (GameObject::addComponent)
+    ↓
+设置 owner (Component::setOwner)
+    ↓
+初始化 (Component::init)
+    ↓
+每帧执行 ←─┐
+    ↓      │
+update()   │
+    ↓      │
+render()   │
+    └──────┘
+    ↓
+GameObject 销毁时自动析构
+```
+
+---
 
 
 

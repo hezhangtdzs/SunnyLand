@@ -2,9 +2,15 @@
 #include "../../engine/component/transform_component.h"
 #include "../../engine/component/sprite_component.h"
 #include "../../engine/component/physics_component.h"
+#include "../../engine/component/animation_component.h"
 #include "state/idle_state.h"
 #include "../../engine/input/input_manager.h" // Needed for InputManager
 #include <spdlog/spdlog.h>
+
+engine::component::AnimationComponent* game::component::PlayerComponent::getAnimationComponent() const
+{
+	return animation_component_;
+}
 
 void game::component::PlayerComponent::setState(std::unique_ptr<state::PlayerState> new_state)
 {
@@ -27,6 +33,7 @@ void game::component::PlayerComponent::init()
 		transform_component_ = owner_->getComponent<engine::component::TransformComponent>();
 		sprite_component_ = owner_->getComponent<engine::component::SpriteComponent>();
 		physics_component_ = owner_->getComponent<engine::component::PhysicsComponent>();
+		animation_component_ = owner_->getComponent<engine::component::AnimationComponent>();
 	}
 	else
 	{

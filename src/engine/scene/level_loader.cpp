@@ -5,12 +5,14 @@
 #include "../component/sprite_component.h"
 #include "../component/collider_component.h"
 #include "../component/physics_component.h"
+#include "../component/animation_component.h"
 #include "../physics/collider.h"
 #include "../object/game_object.h"
 #include "../scene/scene.h"
 #include "../core/context.h"
 #include "../resource/resource_manager.h"
 #include "../render/sprite.h"
+#include "../render/animation.h"
 #include "../utils/math.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -243,6 +245,22 @@ namespace engine::scene {
                                 game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), gravity.value());
                             }
                         }
+                        auto anim_string = getTileProperty<std::string>(*tile_json, "animation");
+                        if (anim_string) {
+                            // 解析string为JSON对象
+                            nlohmann::json anim_json;
+                            try {
+                                anim_json = nlohmann::json::parse(anim_string.value());
+                            }
+                            catch (const nlohmann::json::parse_error& e) {
+                                spdlog::error("解析动画 JSON 字符串失败: {}", e.what());
+                                continue;  // 跳过此对象
+                            }
+                            // 添加AnimationComponent
+                            auto* ac = game_object->addComponent<engine::component::AnimationComponent>();
+                            // 添加动画到 AnimationComponent
+                            addAnimationFromTileJson(ac, anim_json, src_size);
+                        }
                     }
                     
                     // 5. 添加到场景中
@@ -250,7 +268,7 @@ namespace engine::scene {
                     spdlog::info("加载对象: '{}' 完成", object_name);
                 }
             }
-        }
+        } 
     
     const nlohmann::json* LevelLoader::findTileset(int gid)
     {
@@ -462,6 +480,55 @@ namespace engine::scene {
     const nlohmann::json* LevelLoader::getTileJsonByGid(int gid)
     {
         return getTileDataByGid(gid).json_ptr;
+    }
+
+    void LevelLoader::addAnimationFromTileJson(engine::component::AnimationComponent* anim_comp, const nlohmann::json& anim_json, glm::vec2& size)
+    {
+        if (!anim_json.is_object() || !anim_comp) {
+            spdlog::error("无效的动画 JSON 或 AnimationComponent 指针。");
+            return;
+        }
+
+        std::string first_anim;
+
+        for (const auto& anim : anim_json.items()) {
+            const std::string& anim_name = anim.key();
+            if (first_anim.empty()) first_anim = anim_name;
+
+            const auto& anim_info = anim.value();
+            if (!anim_info.is_object()) {
+                spdlog::warn("动画 '{}' 的信息无效或为空。", anim_name);
+                continue;
+            }
+
+            auto duration_ms = anim_info.value("duration", 100);
+            auto duration = static_cast<float>(duration_ms) / 1000.0f;
+            auto row = anim_info.value("row", 0);
+            auto loop = anim_info.value("loop", true); // 支持在 JSON 中定义 loop
+
+            if (!anim_info.contains("frames") || !anim_info["frames"].is_array()) {
+                spdlog::warn("动画 '{}' 缺少 'frames' 数组。", anim_name);
+                continue;
+            }
+
+            auto animation = std::make_unique<engine::render::Animation>(anim_name, loop);
+
+            for (const auto& frame : anim_info["frames"]) {
+                if (!frame.is_number_integer()) {
+                    spdlog::warn("动画 {} 中 frames 数组格式错误！", anim_name);
+                    continue;
+                }
+                auto column = frame.get<int>();
+                SDL_FRect src_rect = {
+                    column * size.x,
+                    row * size.y,
+                    size.x,
+                    size.y
+                };
+                animation->addFrame(src_rect, duration);
+            }
+            anim_comp->addAnimation(std::move(animation));
+        }
     }
 
 } // namespace engine::scene

@@ -91,7 +91,14 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/game/component/state/walk_state.h" 
                           "src/game/component/state/walk_state.cpp" 
                           "src/game/component/state/jump_state.h" 
-                          "src/game/component/state/jump_state.cpp" "src/game/component/state/Fall_state.h" "src/game/component/state/Fall_state.cpp")
+                          "src/game/component/state/jump_state.cpp" 
+                          "src/game/component/state/Fall_state.h" 
+                          "src/game/component/state/Fall_state.cpp"
+                          "src/engine/render/animation.h"
+                          "src/engine/render/animation.cpp" 
+                          "src/engine/component/animation_component.h" 
+                          "src/engine/component/animation_component.cpp" 
+                          "src/game/component/state/player_state.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}

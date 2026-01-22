@@ -1,6 +1,7 @@
 #pragma once
 #include "../../../engine/core/context.h"
 #include <memory>
+#include <string>
 
 namespace game::component {
 	class PlayerComponent;
@@ -20,6 +21,7 @@ namespace game::component::state {
 		PlayerState& operator=(const PlayerState&) = delete;
 		PlayerState(PlayerState&&) = delete;
 		PlayerState& operator=(PlayerState&&) = delete;
+		void playAnimation(const std::string& animation_name);
 	protected:
 
 		virtual void enter() = 0;

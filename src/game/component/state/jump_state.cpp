@@ -12,6 +12,7 @@
 
 namespace game::component::state {
 	void JumpState::enter() {
+		playAnimation("jump");
 		auto physics = player_component_->getPhysicsComponent();
 		float jump_force = player_component_->getJumpForce();
 		

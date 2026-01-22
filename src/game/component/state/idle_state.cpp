@@ -13,6 +13,7 @@ using namespace game::component::state;
 
 void IdleState::enter()
 {
+	playAnimation("idle");
 }
 
 void IdleState::exit()

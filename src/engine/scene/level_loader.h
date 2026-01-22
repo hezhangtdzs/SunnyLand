@@ -7,7 +7,12 @@
 
 #include "../utils/math.h"
 #include "../component/tilelayer_component.h"
+namespace engine::component {
+    struct TileInfo;
+    enum class TileType;
+	class AnimationComponent;
 
+}
 namespace engine::scene {
     class Scene;
 
@@ -143,6 +148,8 @@ namespace engine::scene {
          */
         const nlohmann::json* getTileJsonByGid(int gid);
 
+
+		void addAnimationFromTileJson(engine::component::AnimationComponent* sprite_comp, const nlohmann::json& anim_json, glm::vec2& size );
     };
 
 } // namespace engine::scene
