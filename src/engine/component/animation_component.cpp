@@ -45,7 +45,6 @@ void engine::component::AnimationComponent::playAnimation(const std::string& nam
 			static_cast<float>(first_frame.src_rect.h)
 		};
 		sprite_component_->setSourceRect(source_rect);
-		spdlog::debug("GameObject '{}' 开始播放动画 '{}'", owner_ ? owner_->getName() : "未知", name);
 	}
 }
 

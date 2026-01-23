@@ -21,7 +21,10 @@ namespace engine::physics {
 	class PhysicsEngine {
 	private:
 		std::vector<component::PhysicsComponent*> physics_components_;
+
 		std::vector<std::pair<engine::object::GameObject*, engine::object::GameObject*>> collision_pairs_;
+		std::vector<std::pair<engine::object::GameObject*, engine::component::TileType>> tile_trigger_events_;
+
 		std::vector<component::TileLayerComponent*> tilelayer_components_;
 		glm::vec2 gravity_ = { 0.0f, 980.0f };
 		float max_speed_ = 5000.0f;
@@ -57,6 +60,14 @@ namespace engine::physics {
 			world_bounds_min_ = bounds.position;
 			world_bounds_max_ = bounds.position + bounds.size;
 		}
+		const std::vector<std::pair<engine::object::GameObject*, engine::object::GameObject*>>& getCollisions() const {
+			return collision_pairs_;
+		};
+
+		const std::vector<std::pair<engine::object::GameObject*, engine::component::TileType>>& getTileTriggerEvents() const {
+			return tile_trigger_events_;
+		};
+
 	private:
 		// 新增：碰撞检测循环
 		void checkObjectCollisions();
@@ -78,6 +89,8 @@ namespace engine::physics {
 			float dy,
 			const glm::vec2& collider_size,
 			engine::component::TileLayerComponent* layer);
+
+		void checkTileTriggers();
 	};
 
 }  // namespace engine::physics

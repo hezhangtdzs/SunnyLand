@@ -227,7 +227,17 @@ namespace engine::scene {
 						game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
                         game_object->setTag("solid");
 					}
+					else if (tile_info.type == engine::component::TileType::HAZARD && tile_json) {
+						auto rect = getCollisionRect(tile_json);
+						auto collider_size = rect.has_value() ? rect->size : src_size;
+						auto collider = std::make_unique<engine::physics::AABBCollider>(collider_size);
+						auto collider_component = game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
+						if (rect.has_value()) collider_component->setOffset(rect->position);
+						game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
+						game_object->setTag("hazard");
+					}
 					else if (auto rect = getCollisionRect(tile_json); rect.has_value()) {
+
                         auto collider = std::make_unique<engine::physics::AABBCollider>(rect->size);
                         auto collider_component = game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
                         collider_component->setOffset(rect->position);
@@ -265,6 +275,8 @@ namespace engine::scene {
 						if (auto health = getTileProperty<int>(*tile_json, "health"); health) {
 							game_object->addComponent<engine::component::HealthComponent>(health.value());
                         }
+
+
                     }
                     
                     // 5. 添加到场景中
@@ -447,6 +459,9 @@ namespace engine::scene {
                     else if (type_str == "2_1" || type_str == "slope_2_1") return engine::component::TileType::SLOPE_2_1;
                     else if (type_str == "1_2" || type_str == "slope_1_2") return engine::component::TileType::SLOPE_1_2;
                     else if (type_str == "2_0" || type_str == "slope_2_0") return engine::component::TileType::SLOPE_2_0;
+                }
+                else if (property.value("name", "") == "hazard") {
+                    return property.value("value", false) ? engine::component::TileType::HAZARD : engine::component::TileType::NORMAL;
                 }
             }
         }

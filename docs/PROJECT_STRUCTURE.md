@@ -252,17 +252,41 @@ classDiagram
     class HealthComponent {
         -maxHealth_ : int
         -currentHealth_ : int
-        -is_invincible_ : bool
         -invincibility_duration_ : float
-        +takeDamage(damage)
+        -invincibility_timer_ : float
+        +takeDamage(damage) : bool
         +heal(amount)
-        +isAlive()
+        +isAlive() : bool
+        +isInvincible() : bool
+        +getInvincibilityTimer() : float
     }
 
     class InputManager {
         +Update()
         +isActionPressed(string)
         +isActionDown(string)
+    }
+
+    class AIComponent {
+        -behavior_ : unique_ptr<AIBehavior>
+        +setBehavior(unique_ptr<AIBehavior>)
+    }
+
+    class AIBehavior {
+        <<interface>>
+        +update(dt, GameObject&)*
+    }
+
+    class PatrolBehavior {
+        +update()
+    }
+
+    class UpDownBehavior {
+        +update()
+    }
+
+    class JumpBehavior {
+        +update()
     }
 
     class Camera {
@@ -288,6 +312,11 @@ classDiagram
     Component <|-- PlayerComponent
     Component <|-- AnimationComponent
     Component <|-- HealthComponent
+    Component <|-- AIComponent
+    AIComponent "1" *-- "1" AIBehavior
+    AIBehavior <|-- PatrolBehavior
+    AIBehavior <|-- UpDownBehavior
+    AIBehavior <|-- JumpBehavior
     AnimationComponent "1" *-- "many" Animation
     Animation "1" *-- "many" AnimationFrame
     AnimationComponent ..> SpriteComponent : 驱动切片切换
@@ -450,6 +479,10 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 - `resolveTileCollisions()` 会根据物体的 `ColliderComponent` 世界 AABB 与 `TileLayerComponent` 的 SOLID 瓦片进行分离：
   - 采用 **分离轴 sweep**（先 X 后 Y）避免角落处左右方向表现不一致。
   - 采用对称 `eps`（很小值）对 AABB 边界向内缩，避免 `floor()` 带来的左右/上下取整不对称。
+  - **斜坡物理增强**:
+    - **自动吸附 (Snap/Stickiness)**: 在 `resolveYAxisCollision` 中实现了吸附逻辑，允许玩家在走下坡时保持贴地，避免因重力积分滞后导致的脱离地面和状态闪烁。
+    - **即时状态更新**: 在水平移动（X轴）发生斜坡修正时，立即更新 `collided_below_` 标志，确保后续逻辑（如下一帧的初速度判定）正确。
+    - **判定鲁棒性**: 选取检测范围内 Y 值最小（即物理高度最高）的斜坡面作为支撑面，彻底消除多重碰撞重叠时的“弹出”Bug。
   - 采样瓦片坐标时使用与 `TileLayerComponent::getTileTypeAtWorldPos()` 一致的世界偏移：`layer->getOffset() + layer_owner->Transform.position`，避免渲染与碰撞坐标系不一致。
   - 发生碰撞时将对应轴速度分量置零（例如撞墙清零 `velocity_.x`，落地清零 `velocity_.y`）。
 
@@ -513,17 +546,41 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 ### 13. 生命值系统 (Health System)
 
 - **HealthComponent**: 独立管理实体的生命值生命周期。
-  - **无敌帧 (Invincibility Frames)**: 支持在受伤后进入短暂的无敌状态，防止短时间内被连续扣血。通过 `is_invincible_` 和 `invincibility_duration_` 控制。
-  - **受击逻辑**: `takeDamage()` 返回是否成功扣血。
-- **与状态机连接**: `PlayerComponent` 监听生命值变化。当 `HealthComponent` 触发扣血时，`PlayerComponent` 会根据当前血量切换到 `HurtState` 或 `DeadState`。
+  - **无敌帧 (Invincibility Frames)**: 采用计时器机制。受伤后 `invincibility_timer_` 被设为 `invincibility_duration_`，随后随时间递减（在 `update` 中处理）。只要计时器大于 0，`isInvincible()` 即返回 true，实体免受伤害。
+  - **受击逻辑**: `takeDamage()` 包含无敌状态检查。扣血成功后，会自动触发无敌计时。
+- **与状态机连接**: `PlayerComponent` 监听生命值变化并根据无敌计时器驱动 `SpriteComponent` 实现闪烁反馈。当 `HealthComponent` 触发扣血时，`PlayerComponent` 会切换到 `HurtState` 或 `DeadState`。
 
-### 14. 状态机与物理系统的交互 (Physics & State Machine Interaction)
+### 14. 危险处理与场景反馈 (Hazard Processing & Feedback)
+
+- **处理统一化**: `GameScene::processHazardDamage()` 统一处理玩家受到的环境伤害（如尖刺瓦片或尖刺对象），确保伤害判定的触发逻辑一致。
+- **效果对齐**: `GameScene::createEffect()` 支持多种标签（如 "enemy", "item"），并根据动画帧尺寸自动应用位置偏移，确保特效中心点与触发位置精准重叠。
+
+### 15. 状态机与物理系统的交互 (Physics & State Machine Interaction)
 
 - **碰撞标记 (Collision Flags)**: `PhysicsComponent` 实时维护四个方向的碰撞标记：`below`, `above`, `left`, `right`。
 - **状态切换依据**: 
   - `IdleState` 和 `WalkState` 会每帧检查 `!hasCollidedBelow()`，如果为真则代表玩家悬空，立即切换到 `FallState`。
   - `FallState` 会每帧检查 `hasCollidedBelow()`，如果为真则代表玩家落地，立即切换到 `IdleState` 或 `WalkState`。
 - **输入处理辅助**: `PlayerComponent::processMovementInput()` 封装了左右移动的力学逻辑。在空中状态（`Jump/Fall`）调用时通常会传入较小的速度系数（如 `0.5f`）以实现受限的空中控制。
+
+### 16. AI 行为系统 (AI Behavior System)
+
+本项目采用 **策略模式 (Strategy Pattern)** 实现敌人的 AI 逻辑。
+
+- **AIComponent**: 挂载到敌对 NPC 上的组件，内部持有一个 `AIBehavior` 策略对象。
+  - 每帧驱动 `current_behavior_->update()`，将具体逻辑逻辑委托给策略类。
+- **AIBehavior (抽象基类)**: 定义了统一的 `update(delta_time, game_object)` 接口。
+- **具体策略**:
+  - `PatrolBehavior`: 基础左右巡逻。支持设置巡逻范围和移动速度。
+  - `UpDownBehavior`: 垂直飞行巡逻。常用于 Eagle 等飞行敌人。
+  - `JumpBehavior`: 周期性跳跃移动。模拟 Frog 的动作，结合物理引擎实现抛物线跳跃。
+
+### 17. 战斗判定 (Combat Detection)
+
+- **踩踏判定 (Stomp Logic)**:
+  - 优化后的 `PlayerVSEnemyCollision` 不再仅依赖重叠区域的长宽比。
+  - **判定条件**: 1. 玩家垂直速度向下 (`velocity.y > 0`)； 2. 玩家足部 AABB 边界在敌人中心线上方。
+  - **效果**: 判定成功则调用敌人 `HealthComponent` 扣血，并赋予玩家瞬时的向上冲量（反弹跳）。判定失败则玩家受损。
 
 ## 开发规范 (Development Guidelines)
 
@@ -604,9 +661,10 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 | **PhysicsEngine** | 物理系统入口，统一更新所有物理组件并执行基础碰撞检测。 | `update()`, `registerPhysicsComponent()`, `getCollisionPairs()` | 记录碰撞对供调试 |
 | **ColliderComponent** | 碰撞组件，提供碰撞体形状并计算世界坐标 AABB。 | `getWorldAABB()`, `getCollider()` | 参与碰撞检测 |
 | **PhysicsComponent** | 物理组件，保存质量/速度/受力并影响 Transform。 | `addForce()`, `setVelocity()` | 由 PhysicsEngine 驱动 |
-| **HealthComponent** | 生命值组件，管理 HP、受伤、治疗及无敌帧。 | `takeDamage()`, `heal()`, `isAlive()` | 独立逻辑组件 |
+| **HealthComponent** | 生命值组件，管理 HP、受伤、治疗及无敌帧计时。 | `takeDamage()`, `isInvincible()`, `isAlive()` | 支持自动无敌反馈逻辑 |
 | **PlayerComponent** | 玩家控制组件，通过状态机驱动玩家行为逻辑。 | `processMovementInput()`, `setState()` | 业务逻辑核心 |
 | **PlayerState** | 玩家状态抽象，定义了不同动作下的行为逻辑。 | `handleInput()`, `update()` | 状态模式实现 |
+| **AIComponent** | **AI 逻辑组件**，通过注入不同的 Behavior 策略实现各种敌人行为。 | `setBehavior()`, `update()` | 策略模式实现 |
 
 ---
 
@@ -701,6 +759,14 @@ GameObject 销毁时自动析构
 ```
 
 ---
+
+
+
+
+
+
+
+
 
 
 

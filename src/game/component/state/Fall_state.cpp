@@ -30,7 +30,7 @@ namespace game::component::state {
 
         // 如果下方有碰撞，则根据水平速度来决定 切换到 IdleState 或 WalkState
         if (physics_component->hasCollidedBelow()) {
-            if (glm::abs(physics_component->velocity_.x) < 1.0f) {
+            if (glm::abs(physics_component->velocity_.x) < 50.0f) {
                 return std::make_unique<IdleState>(player_component_);
             }
             else {

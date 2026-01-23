@@ -101,6 +101,18 @@ void game::component::PlayerComponent::update(float delta_time, engine::core::Co
 			setState(std::move(new_state));
 		}
 	}
+
+	// 处理受伤后的闪烁效果
+	if (health_component_ && health_component_->isInvincible()) {
+		// 使用无敌剩余时间来计算闪烁频率
+		bool visible = static_cast<int>(health_component_->getInvincibilityTimer() * 15) % 2 == 0;
+		if (sprite_component_) {
+			sprite_component_->setHidden(!visible);
+		}
+	}
+	else if (sprite_component_ && sprite_component_->isHidden()) {
+		sprite_component_->setHidden(false);
+	}
 }
 
 bool game::component::PlayerComponent::processMovementInput(engine::core::Context& context, float speed_scale)

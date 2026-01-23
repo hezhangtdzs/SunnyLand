@@ -3,13 +3,12 @@
 #include<spdlog/spdlog.h>
 bool engine::component::HealthComponent::takeDamage(int damage)
 {
-	if (damage <= 0 || !isAlive()|| is_invincible_) return false;
+	if (damage <= 0 || !isAlive() || isInvincible()) return false;
 	currentHealth_ -= damage;
 	currentHealth_ = glm::max(0, currentHealth_);
-	if (isAlive()&& invincibility_duration_ > 0.0f)
+	if (isAlive() && invincibility_duration_ > 0.0f)
 	{
-		setInvincibilityDuration(invincibility_duration_);
-
+		invincibility_timer_ = invincibility_duration_;
 	}
 	spdlog::info("GameObject [{}] took {} damage, current health: {}/{}", owner_->getName(), damage, currentHealth_, maxHealth_);
 	return true;
@@ -26,10 +25,9 @@ void engine::component::HealthComponent::heal(int amount)
 
 void engine::component::HealthComponent::update(float deltaTime, engine::core::Context& context)
 {
-	if (is_invincible_) {
-		invincibility_duration_ -= deltaTime;
-		if (invincibility_duration_ <= 0.0f) {
-			is_invincible_ = false;
+	if (invincibility_timer_ > 0.0f) {
+		invincibility_timer_ -= deltaTime;
+		if (invincibility_timer_ < 0.0f) {
 			invincibility_timer_ = 0.0f;
 		}
 	}

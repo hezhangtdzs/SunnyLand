@@ -8,6 +8,7 @@
 #include "../object/game_object.h"
 #include <glm/glm.hpp>
 #include <algorithm>
+#include <set>
 #include <cmath>
 void engine::physics::PhysicsEngine::registerPhysicsComponent(component::PhysicsComponent* physics_component)
 {
@@ -37,6 +38,7 @@ void engine::physics::PhysicsEngine::unregisterCollisionLayer(component::TileLay
 void engine::physics::PhysicsEngine::update(float delta_time)
 {
 	collision_pairs_.clear();
+    tile_trigger_events_.clear();
 	// 防止卡顿/断点导致 dt 过大，从而一帧内位移过大直接飞出镜头
 	const float dt = std::clamp(delta_time, 0.0f, 1.0f / 30.0f);
     for (auto* pc : physics_components_) {
@@ -70,9 +72,11 @@ void engine::physics::PhysicsEngine::update(float delta_time)
 
 	}
 	checkObjectCollisions();
+	checkTileTriggers();
 }
 
 void engine::physics::PhysicsEngine::checkObjectCollisions()
+
 {
 	// 基于 ColliderComponent 的碰撞检测
 	for (size_t i = 0; i < physics_components_.size(); ++i) {
@@ -382,8 +386,10 @@ void engine::physics::PhysicsEngine::resolveXAxisCollision(
                     float rel_x = (new_pos.x + collider_size.x - eps) - tile_origin_x;
                     float h = getTileHeightAtWidth(rel_x, t, tile_size_vec);
                     float ground_y = layer_offset.y + static_cast<float>(tile_y_bottom + 1) * tile_size_vec.y - h;
-                    if (new_pos.y + collider_size.y > ground_y - eps) {
+                    if (new_pos.y + collider_size.y >= ground_y - eps) {
                          new_pos.y = ground_y - collider_size.y;
+                         pc->setCollidedBelow(true);
+                         pc->velocity_.y = 0.0f;
                     }
                 }
             }
@@ -416,23 +422,25 @@ void engine::physics::PhysicsEngine::resolveXAxisCollision(
                  }
              }
 
-             if (hit) {
-                 new_pos.x = layer_offset.x + static_cast<float>(tile_x + 1) * tile_size_vec.x;
-                 pc->velocity_.x = 0.0f;
-                 pc->setCollidedLeft(true);
-             } else if (tile_y_bottom >= 0 && tile_y_bottom < layer_height) {
-                 // Slope embedding check
-                 TileType t = getTypeAt(tile_x, tile_y_bottom);
-                 if (isSlope(t)) {
-                     float tile_origin_x = layer_offset.x + static_cast<float>(tile_x) * tile_size_vec.x;
-                     float rel_x = (new_pos.x + eps) - tile_origin_x;
-                     float h = getTileHeightAtWidth(rel_x, t, tile_size_vec);
-                     float ground_y = layer_offset.y + static_cast<float>(tile_y_bottom + 1) * tile_size_vec.y - h;
-                     if (new_pos.y + collider_size.y > ground_y - eps) {
-                         new_pos.y = ground_y - collider_size.y;
-                     }
-                 }
-             }
+              if (hit) {
+                  new_pos.x = layer_offset.x + static_cast<float>(tile_x + 1) * tile_size_vec.x;
+                  pc->velocity_.x = 0.0f;
+                  pc->setCollidedLeft(true);
+              } else if (tile_y_bottom >= 0 && tile_y_bottom < layer_height) {
+                  // Slope embedding check
+                  TileType t = getTypeAt(tile_x, tile_y_bottom);
+                  if (isSlope(t)) {
+                      float tile_origin_x = layer_offset.x + static_cast<float>(tile_x) * tile_size_vec.x;
+                      float rel_x = (new_pos.x + eps) - tile_origin_x;
+                      float h = getTileHeightAtWidth(rel_x, t, tile_size_vec);
+                      float ground_y = layer_offset.y + static_cast<float>(tile_y_bottom + 1) * tile_size_vec.y - h;
+                      if (new_pos.y + collider_size.y >= ground_y - eps) {
+                          new_pos.y = ground_y - collider_size.y;
+                          pc->setCollidedBelow(true);
+                          pc->velocity_.y = 0.0f;
+                      }
+                  }
+              }
         }
     }
     aabb_pos = new_pos;
@@ -509,27 +517,39 @@ void engine::physics::PhysicsEngine::resolveYAxisCollision(
                 pc->velocity_.y = 0.0f;
                 pc->setCollidedBelow(true);
             } else {
-                // Slope snap logic
-                TileType tile_type_left = getTypeAt(tile_x_left, tile_y);
-                TileType tile_type_right = getTypeAt(tile_x_right, tile_y);
-                float height = 0.0f;
+                // Slope snap logic (Stickiness)
+                const float snap_distance = 6.0f; // 允许的吸附距离
+                float min_ground_y = 1e9f;
+                bool found_slope = false;
 
-                if (isSlope(tile_type_left)) {
-                    const float tile_left_x = layer_offset.x + static_cast<float>(tile_x_left) * tile_size_vec.x;
-                    float width_left = (new_pos.x + eps) - tile_left_x;
-                    height = std::max(height, getTileHeightAtWidth(width_left, tile_type_left, tile_size_vec));
-                }
-                if (isSlope(tile_type_right)) {
-                    const float tile_right_x = layer_offset.x + static_cast<float>(tile_x_right) * tile_size_vec.x;
-                    float width_right = (new_pos.x + collider_size.x - eps) - tile_right_x;
-                    height = std::max(height, getTileHeightAtWidth(width_right, tile_type_right, tile_size_vec));
-                }
+                auto checkSlope = [&](int tx, int ty) {
+                    if (tx < 0 || tx >= layer_width || ty < 0 || ty >= layer_height) return;
+                    TileType t = getTypeAt(tx, ty);
+                    if (isSlope(t)) {
+                        float tile_x_origin = layer_offset.x + static_cast<float>(tx) * tile_size_vec.x;
+                        float h_left = getTileHeightAtWidth(glm::clamp((new_pos.x + eps) - tile_x_origin, 0.0f, tile_size_vec.x), t, tile_size_vec);
+                        float h_right = getTileHeightAtWidth(glm::clamp((new_pos.x + collider_size.x - eps) - tile_x_origin, 0.0f, tile_size_vec.x), t, tile_size_vec);
+                        float h = std::max(h_left, h_right);
+                        
+                        float g_y = layer_offset.y + static_cast<float>(ty + 1) * tile_size_vec.y - h;
+                        if (g_y < min_ground_y) {
+                            min_ground_y = g_y;
+                            found_slope = true;
+                        }
+                    }
+                };
 
-                if (height > 0.0f) {
-                    const float ground_y = layer_offset.y + static_cast<float>(tile_y + 1) * tile_size_vec.y - height;
-                    const float bottom_y = new_pos.y + collider_size.y;
-                    if (bottom_y > ground_y - eps) {
-                        new_pos.y = ground_y - collider_size.y;
+                // 检查当前行和下一行（走下坡可能跨行）
+                checkSlope(tile_x_left, tile_y);
+                checkSlope(tile_x_right, tile_y);
+                checkSlope(tile_x_left, tile_y + 1);
+                checkSlope(tile_x_right, tile_y + 1);
+
+                if (found_slope) {
+                    float current_bottom = new_pos.y + collider_size.y;
+                    // 如果在斜坡上方一定距离内，则吸附。使用更稳健的比较。
+                    if (current_bottom >= min_ground_y - eps || (pc->velocity_.y >= 0 && current_bottom > min_ground_y - snap_distance)) {
+                        new_pos.y = min_ground_y - collider_size.y;
                         pc->velocity_.y = 0.0f;
                         pc->setCollidedBelow(true);
                     }
@@ -552,5 +572,63 @@ void engine::physics::PhysicsEngine::resolveYAxisCollision(
         }
     }
     aabb_pos.y = new_pos.y;
+}
+
+void engine::physics::PhysicsEngine::checkTileTriggers()
+{
+    for (auto* pc : physics_components_) {
+        if (!pc || !pc->isEnabled()) continue;
+        
+        auto* obj = pc->getOwner();
+        if (!obj) continue;
+
+        auto* cc = obj->getComponent<engine::component::ColliderComponent>();
+        if (!cc || !cc->getIsActive()) continue;
+
+        const auto world_aabb = cc->getWorldAABB();
+        // 使用 set 防止同一帧内由于接触多个同类瓦片而重复触发相同事件
+        std::set<engine::component::TileType> triggers_set;
+
+        for (auto* layer : tilelayer_components_) {
+            if (!layer || layer->isHidden()) continue;
+
+            const glm::vec2 tile_size = layer->getTileSize();
+            if (tile_size.x <= 0.0f || tile_size.y <= 0.0f) continue;
+
+            // 计算图层世界坐标偏移
+            glm::vec2 layer_offset = layer->getOffset();
+            if (auto* layer_owner = layer->getOwner()) {
+                if (auto* layer_tc = layer_owner->getComponent<engine::component::TransformComponent>()) {
+                    layer_offset += layer_tc->getPosition();
+                }
+            }
+
+            // 计算物体覆盖的瓦片索引范围
+            int start_x = static_cast<int>(std::floor((world_aabb.position.x - layer_offset.x) / tile_size.x));
+            int end_x   = static_cast<int>(std::floor((world_aabb.position.x + world_aabb.size.x - layer_offset.x) / tile_size.x));
+            int start_y = static_cast<int>(std::floor((world_aabb.position.y - layer_offset.y) / tile_size.y));
+            int end_y   = static_cast<int>(std::floor((world_aabb.position.y + world_aabb.size.y - layer_offset.y) / tile_size.y));
+
+            const auto map_size = layer->getMapSize();
+
+            for (int x = start_x; x <= end_x; ++x) {
+                if (x < 0 || x >= map_size.x) continue;
+                for (int y = start_y; y <= end_y; ++y) {
+                    if (y < 0 || y >= map_size.y) continue;
+
+                    auto tile_type = layer->getTileTypeAt({ x, y });
+                    // 目前检测 HAZARD 类型，可根据需要扩展其它触发器类型
+                    if (tile_type == engine::component::TileType::HAZARD) {
+                        triggers_set.insert(tile_type);
+                    }
+                }
+            }
+        }
+
+        // 将本帧触发的所有唯一类型的事件记录下来
+        for (const auto& type : triggers_set) {
+            tile_trigger_events_.emplace_back(obj, type);
+        }
+    }
 }
 
