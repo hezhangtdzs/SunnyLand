@@ -12,6 +12,7 @@ namespace game::component::state {
 		friend class game::component::PlayerComponent;
 	protected:
 		game::component::PlayerComponent* player_component_{ nullptr };
+
 	public:
 		PlayerState(game::component::PlayerComponent* player_component)
 			: player_component_(player_component) {}

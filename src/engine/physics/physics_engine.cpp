@@ -149,7 +149,7 @@ void engine::physics::PhysicsEngine::resolveTileCollisions(engine::component::Ph
     auto* tc = obj->getComponent<TransformComponent>();
     auto* cc = obj->getComponent<ColliderComponent>();
     // 如果没有碰撞盒、未激活或是触发器（不参与物理阻挡），则跳过
-    if (!tc || !cc || !cc->getIsActive() || cc->getIsTrigger()) {
+    if (!tc || !cc || cc->getIsTrigger()) {
         return;
     }
 
@@ -164,6 +164,12 @@ void engine::physics::PhysicsEngine::resolveTileCollisions(engine::component::Ph
     const glm::vec2 ds = pc->velocity_ * delta_time;
     // eps: 碰撞检测容差，防止浮点精度问题导致卡在墙内或穿墙
     const float eps = 0.001f;
+	// 如果碰撞体未激活，则直接应用位移并返回
+    if (!cc->getIsActive()) {
+        tc->translate(ds);
+        pc->velocity_ = glm::clamp(pc->velocity_, -max_speed_, max_speed_);
+        return;
+    }
 
     // 4. 遍历所有注册的瓦片图层进行检测
     for (auto* layer : tilelayer_components_) {

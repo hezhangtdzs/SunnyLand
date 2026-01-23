@@ -235,6 +235,30 @@ classDiagram
         +update()
     }
 
+    class HurtState {
+        +enter()
+        +exit()
+        +handleInput()
+        +update()
+    }
+
+    class DeadState {
+        +enter()
+        +exit()
+        +handleInput()
+        +update()
+    }
+
+    class HealthComponent {
+        -maxHealth_ : int
+        -currentHealth_ : int
+        -is_invincible_ : bool
+        -invincibility_duration_ : float
+        +takeDamage(damage)
+        +heal(amount)
+        +isAlive()
+    }
+
     class InputManager {
         +Update()
         +isActionPressed(string)
@@ -263,14 +287,18 @@ classDiagram
     Component <|-- ColliderComponent
     Component <|-- PlayerComponent
     Component <|-- AnimationComponent
+    Component <|-- HealthComponent
     AnimationComponent "1" *-- "many" Animation
     Animation "1" *-- "many" AnimationFrame
     AnimationComponent ..> SpriteComponent : 驱动切片切换
     PlayerComponent "1" *-- "1" PlayerState
+    PlayerComponent "1" *-- "1" HealthComponent : 依赖状态判断
     PlayerState <|-- IdleState
     PlayerState <|-- WalkState
     PlayerState <|-- JumpState
     PlayerState <|-- FallState
+    PlayerState <|-- HurtState
+    PlayerState <|-- DeadState
     Collider <|-- AABBCollider
     Collider <|-- CircleCollider
     SpriteComponent ..> TransformComponent : 依赖位置
@@ -479,8 +507,17 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
   - `WalkState`: 移动状态。处理移动输入，检测停止输入回 `IdleState`。
   - `JumpState`: 跳跃上升状态。进入时施加向上速度。空中可移动。检测 Y 轴速度向下切换 `FallState`。
   - `FallState`: 下落状态。空中可移动。检测地面碰撞 (`hasCollidedBelow`) 切换 `Idle/Walk`。
+  - `HurtState`: 受伤状态。进入时播放受伤动画，通常在受击瞬间从其他状态切入。
+  - `DeadState`: 死亡状态。进入时播放死亡动画，禁用大部分输入处理，准备从场景移除。
 
-### 13. 状态机与物理系统的交互 (Physics & State Machine Interaction)
+### 13. 生命值系统 (Health System)
+
+- **HealthComponent**: 独立管理实体的生命值生命周期。
+  - **无敌帧 (Invincibility Frames)**: 支持在受伤后进入短暂的无敌状态，防止短时间内被连续扣血。通过 `is_invincible_` 和 `invincibility_duration_` 控制。
+  - **受击逻辑**: `takeDamage()` 返回是否成功扣血。
+- **与状态机连接**: `PlayerComponent` 监听生命值变化。当 `HealthComponent` 触发扣血时，`PlayerComponent` 会根据当前血量切换到 `HurtState` 或 `DeadState`。
+
+### 14. 状态机与物理系统的交互 (Physics & State Machine Interaction)
 
 - **碰撞标记 (Collision Flags)**: `PhysicsComponent` 实时维护四个方向的碰撞标记：`below`, `above`, `left`, `right`。
 - **状态切换依据**: 
@@ -567,6 +604,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 | **PhysicsEngine** | 物理系统入口，统一更新所有物理组件并执行基础碰撞检测。 | `update()`, `registerPhysicsComponent()`, `getCollisionPairs()` | 记录碰撞对供调试 |
 | **ColliderComponent** | 碰撞组件，提供碰撞体形状并计算世界坐标 AABB。 | `getWorldAABB()`, `getCollider()` | 参与碰撞检测 |
 | **PhysicsComponent** | 物理组件，保存质量/速度/受力并影响 Transform。 | `addForce()`, `setVelocity()` | 由 PhysicsEngine 驱动 |
+| **HealthComponent** | 生命值组件，管理 HP、受伤、治疗及无敌帧。 | `takeDamage()`, `heal()`, `isAlive()` | 独立逻辑组件 |
 | **PlayerComponent** | 玩家控制组件，通过状态机驱动玩家行为逻辑。 | `processMovementInput()`, `setState()` | 业务逻辑核心 |
 | **PlayerState** | 玩家状态抽象，定义了不同动作下的行为逻辑。 | `handleInput()`, `update()` | 状态模式实现 |
 

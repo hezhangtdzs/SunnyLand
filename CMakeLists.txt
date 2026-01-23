@@ -98,7 +98,9 @@ add_executable(${TARGET} "src/engine/core/game_app.h"
                           "src/engine/render/animation.cpp" 
                           "src/engine/component/animation_component.h" 
                           "src/engine/component/animation_component.cpp" 
-                          "src/game/component/state/player_state.cpp")
+                          "src/engine/component/health_component.h"
+                          "src/engine/component/health_component.cpp"
+                          "src/game/component/state/player_state.cpp" "src/game/component/state/hurt_state.h" "src/game/component/state/hurt_state.cpp" "src/game/component/state/dead_state.h" "src/game/component/state/dead_state.cpp")
 
 # 链接库
 target_link_libraries(${TARGET}

@@ -41,6 +41,7 @@ namespace game::scene {
 
     void GameScene::handleInput() {
         Scene::handleInput();
+        testHealth();
     }
 
     void GameScene::clean() {
@@ -148,6 +149,16 @@ namespace game::scene {
             }
         }
         return success;
+    }
+    void GameScene::testHealth()
+    {
+		auto input_manager = context_.getInputManager();
+		if (input_manager.isActionPressed("attack")) {
+            auto* player_component = player_->getComponent<game::component::PlayerComponent>();
+            if (player_component) {
+                player_component->takeDamage(1);
+            }
+        }
     }
 }
 

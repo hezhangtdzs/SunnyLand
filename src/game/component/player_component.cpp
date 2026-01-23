@@ -3,13 +3,40 @@
 #include "../../engine/component/sprite_component.h"
 #include "../../engine/component/physics_component.h"
 #include "../../engine/component/animation_component.h"
+#include "../../engine/component/health_component.h"
 #include "state/idle_state.h"
+#include "state/hurt_state.h"
+#include "state/dead_state.h"
 #include "../../engine/input/input_manager.h" // Needed for InputManager
 #include <spdlog/spdlog.h>
 
 engine::component::AnimationComponent* game::component::PlayerComponent::getAnimationComponent() const
 {
 	return animation_component_;
+}
+
+bool game::component::PlayerComponent::takeDamage(int damage)
+{
+	if(!is_dead_ && health_component_ && health_component_->isAlive()) {
+		spdlog::info("PlayerComponent 收到伤害：{}", damage);
+	}
+	if (health_component_) {
+		bool success = health_component_->takeDamage(damage);
+		if (success) {
+			if (health_component_->isAlive()) {
+				spdlog::info("PlayerComponent 受伤，当前生命值：{}/{}",
+					health_component_->getCurrentHealth(),
+					health_component_->getMaxHealth());
+					setState(std::make_unique<state::HurtState>(this));
+			}
+			else {
+				spdlog::info("PlayerComponent 死亡。");
+				is_dead_ = true;
+				setState(std::make_unique<state::DeadState>(this));	
+			}
+		}
+	}
+	return false;
 }
 
 void game::component::PlayerComponent::setState(std::unique_ptr<state::PlayerState> new_state)
@@ -34,6 +61,7 @@ void game::component::PlayerComponent::init()
 		sprite_component_ = owner_->getComponent<engine::component::SpriteComponent>();
 		physics_component_ = owner_->getComponent<engine::component::PhysicsComponent>();
 		animation_component_ = owner_->getComponent<engine::component::AnimationComponent>();
+		health_component_ = owner_->getComponent<engine::component::HealthComponent>();
 	}
 	else
 	{
@@ -48,6 +76,10 @@ void game::component::PlayerComponent::init()
 	if (!physics_component_) {
 		spdlog::error("PlayerComponent 初始化失败：缺少 PhysicsComponent 组件");
 	}
+	if (!health_component_) {
+		spdlog::error("PlayerComponent 初始化失败：缺少 HealthComponent 组件");
+	}
+
 	setState(std::make_unique<state::IdleState>(this));
 }
 

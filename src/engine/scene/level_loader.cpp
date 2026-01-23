@@ -6,6 +6,7 @@
 #include "../component/collider_component.h"
 #include "../component/physics_component.h"
 #include "../component/animation_component.h"
+#include "../component/health_component.h"
 #include "../physics/collider.h"
 #include "../object/game_object.h"
 #include "../scene/scene.h"
@@ -260,6 +261,9 @@ namespace engine::scene {
                             auto* ac = game_object->addComponent<engine::component::AnimationComponent>();
                             // 添加动画到 AnimationComponent
                             addAnimationFromTileJson(ac, anim_json, src_size);
+                        }
+						if (auto health = getTileProperty<int>(*tile_json, "health"); health) {
+							game_object->addComponent<engine::component::HealthComponent>(health.value());
                         }
                     }
                     

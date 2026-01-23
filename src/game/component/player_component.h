@@ -7,6 +7,7 @@ namespace engine::component {
 	class SpriteComponent;
 	class PhysicsComponent;
 	class AnimationComponent;
+	class HealthComponent;
 }
 namespace game::component
 {
@@ -21,6 +22,7 @@ namespace game::component
 		engine::component::SpriteComponent* sprite_component_{ nullptr };
 		engine::component::PhysicsComponent* physics_component_{ nullptr };
 		engine::component::AnimationComponent* animation_component_ = nullptr;
+		engine::component::HealthComponent* health_component_ = nullptr;
 
 		std::unique_ptr<state::PlayerState> current_state_{ nullptr };
 		bool is_dead_{ false };
@@ -29,6 +31,7 @@ namespace game::component
 		float jump_force_{ 350.0f };
 		float max_move_speed_{ 150.0f };
 		float  friction_{ 0.8f };
+		float stunned_duration_ = 0.4f;
 	public:
 		PlayerComponent()=default;
 		~PlayerComponent()=default;
@@ -41,6 +44,9 @@ namespace game::component
 		engine::component::SpriteComponent* getSpriteComponent() const { return sprite_component_; }
 		engine::component::PhysicsComponent* getPhysicsComponent() const { return physics_component_; }
 		engine::component::AnimationComponent* getAnimationComponent() const;
+		engine::component::HealthComponent* getHealthComponent() const { return health_component_; }
+
+		bool takeDamage(int damage);
 
 		bool isDead() const { return is_dead_; }
 		void setDead(bool is_dead) { is_dead_ = is_dead; }
@@ -48,6 +54,7 @@ namespace game::component
 		float getJumpForce() const { return jump_force_; }
 		float getMaxMoveSpeed() const { return max_move_speed_; }
 		float getFriction() const { return friction_; }
+		float getStunnedDuration() const { return stunned_duration_; }
 
 		void setState(std::unique_ptr<state::PlayerState> new_state);
 
