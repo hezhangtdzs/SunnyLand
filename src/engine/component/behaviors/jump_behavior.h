@@ -16,6 +16,7 @@ namespace engine::component {
         bool movingRight_; ///< 是否向右移动
         float jumpCooldown_; ///< 跳跃冷却时间
         float jumpTimer_; ///< 跳跃计时器
+        bool wasOnGround_{ false }; ///< 是否在地面上
         
     public:
         /**

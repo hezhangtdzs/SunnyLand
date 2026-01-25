@@ -22,8 +22,26 @@ namespace engine::resource {
             throw std::runtime_error("SDL_Mixer 打开音频失败: " + std::string(SDL_GetError()));
         }
 
-        // 3. 设置主音量 (SDL3 范围是 0.0 - 1.0)
-        MIX_SetMasterGain(mixer_.get(), 0.25f);
+        // 3. 创建专门播放音乐的轨道
+        music_track_.reset(MIX_CreateTrack(mixer_.get()));
+        if (!music_track_) {
+            spdlog::error("无法创建背景音乐轨道: {}", SDL_GetError());
+        }
+
+		sound_track_.reset(MIX_CreateTrack(mixer_.get()));
+		if (!sound_track_) {
+			spdlog::error("无法创建音效轨道: {}", SDL_GetError());
+		}
+
+		if (music_track_) {
+			MIX_TagTrack(music_track_.get(), "music");
+		}
+		if (sound_track_) {
+			MIX_TagTrack(sound_track_.get(), "sound");
+		}
+
+        // 4. 设置主音量 (SDL3 范围是 0.0 - 1.0)
+		MIX_SetMasterGain(mixer_.get(), 0.25f);
         
         spdlog::trace("AudioManager 构造成功。");
     }
@@ -38,8 +56,10 @@ namespace engine::resource {
             // 清空所有资源，确保 MIX_Audio 资源在 mixer 销毁前释放
             clearAudio();
 
-            // 重要：必须在 MIX_Quit 之前手动 reset mixer
+            // 重要：必须在 MIX_Quit 之前手动 reset 资源
             // 否则 unique_ptr 会在 MIX_Quit 之后析构，导致非法访问
+            music_track_.reset();
+			sound_track_.reset();
             mixer_.reset();
         }
 
@@ -99,6 +119,24 @@ namespace engine::resource {
         }
     }
 
+    void AudioManager::playSound(const std::string& file_path) {
+		if (!sound_track_) return;
+
+		MIX_Audio* audio = getSound(file_path);
+		if (!audio) return;
+
+		MIX_SetTrackAudio(sound_track_.get(), audio);
+		if (!MIX_PlayTrack(sound_track_.get(), 0)) {
+			spdlog::error("播放音效失败: {} - {}", file_path, SDL_GetError());
+		}
+    }
+
+	void AudioManager::stopSound() {
+		if (sound_track_) {
+			MIX_StopTrack(sound_track_.get(), 0);
+		}
+	}
+
     // --- 音乐管理 (Music) ---
 
     MIX_Audio* AudioManager::loadMusic(const std::string& file_path) {
@@ -147,6 +185,54 @@ namespace engine::resource {
             music_.clear();
         }
     }
+
+    void AudioManager::playMusic(const std::string& file_path) {
+        if (!music_track_) return;
+
+        MIX_Audio* music = getMusic(file_path);
+        if (music) {
+            // 1. 设置到音乐轨道
+            MIX_SetTrackAudio(music_track_.get(), music);
+
+            // 2. 准备播放选项：循环播放 (-1 为无限循环)
+            SDL_PropertiesID props = SDL_CreateProperties();
+            SDL_SetNumberProperty(props, MIX_PROP_PLAY_LOOPS_NUMBER, -1);
+            
+            // 3. 开始播放
+            if (!MIX_PlayTrack(music_track_.get(), props)) {
+                spdlog::error("播放音乐失败: {} - {}", file_path, SDL_GetError());
+            }
+
+            // 4. 清理属性
+            SDL_DestroyProperties(props);
+            
+            spdlog::debug("正在播放音乐: {}", file_path);
+        }
+    }
+
+    void AudioManager::stopMusic() {
+        if (music_track_) {
+            MIX_StopTrack(music_track_.get(), 0);
+        }
+    }
+
+	void AudioManager::setMusicGain(float gain) {
+		if (music_track_) {
+			MIX_SetTrackGain(music_track_.get(), std::max(0.0f, gain));
+		}
+	}
+
+	void AudioManager::setSoundGain(float gain) {
+		if (sound_track_) {
+			MIX_SetTrackGain(sound_track_.get(), std::max(0.0f, gain));
+		}
+	}
+
+	void AudioManager::setMasterGain(float gain) {
+		if (mixer_) {
+			MIX_SetMasterGain(mixer_.get(), std::max(0.0f, gain));
+		}
+	}
 
     // --- 统一管理 ---
 

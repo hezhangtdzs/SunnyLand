@@ -9,6 +9,7 @@
 #include "../../../engine/component/physics_component.h"
 #include "../../../engine/component/transform_component.h"
 #include "../../../engine/component/collider_component.h"
+#include "../../../engine/component/audio_component.h"
 #include "../../../engine/physics/physics_engine.h"
 #include <spdlog/spdlog.h>
 #include <cmath>
@@ -29,6 +30,9 @@ std::unique_ptr<PlayerState> IdleState::handleInput(engine::core::Context& conte
 	auto& input = context.getInputManager();
 
 	if (input.isActionPressed("jump")) {
+		if (auto* audio = player_component_->getOwner()->getComponent<engine::component::AudioComponent>()) {
+			audio->playSound("jump", context);
+		}
 		return std::make_unique<JumpState>(player_component_);
 	}
 

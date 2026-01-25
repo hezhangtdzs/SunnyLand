@@ -7,6 +7,7 @@
 #include "../component/physics_component.h"
 #include "../component/animation_component.h"
 #include "../component/health_component.h"
+#include "../component/audio_component.h"
 #include "../physics/collider.h"
 #include "../object/game_object.h"
 #include "../scene/scene.h"
@@ -275,6 +276,26 @@ namespace engine::scene {
 						if (auto health = getTileProperty<int>(*tile_json, "health"); health) {
 							game_object->addComponent<engine::component::HealthComponent>(health.value());
                         }
+
+						if (auto sound_string = getTileProperty<std::string>(*tile_json, "sound"); sound_string) {
+							nlohmann::json sound_json;
+							try {
+								sound_json = nlohmann::json::parse(sound_string.value());
+							}
+							catch (const nlohmann::json::parse_error& e) {
+								spdlog::error("解析音效 JSON 字符串失败: {}", e.what());
+								sound_json = nlohmann::json();
+							}
+
+							if (sound_json.is_object()) {
+								auto* audio = game_object->addComponent<engine::component::AudioComponent>();
+								for (const auto& kv : sound_json.items()) {
+									if (kv.value().is_string()) {
+										audio->registerSound(kv.key(), kv.value().get<std::string>());
+									}
+								}
+							}
+						}
 
 
                     }

@@ -86,6 +86,13 @@ namespace engine::resource {
 		MIX_Audio* loadSound(const std::string& file_path);
 
 		/**
+		 * @brief 播放音效。
+		 * @param file_path 音频文件相对路径。
+		 */
+		void playSound(const std::string& file_path);
+		void stopSound();
+
+		/**
 		 * @brief 尝试获取已加载音效的指针，如果未加载则尝试从文件加载。
 		 * @param file_path 音频文件的相对路径。
 		 * @return MIX_Audio 指针。
@@ -110,6 +117,21 @@ namespace engine::resource {
 		 * @return MIX_Audio 指针。
 		 */
 		MIX_Audio* loadMusic(const std::string& file_path);
+
+		/**
+		 * @brief 播放背景音乐。
+		 * @param file_path 音乐文件路径。
+		 */
+		void playMusic(const std::string& file_path);
+
+		/**
+		 * @brief 停止背景音乐播放。
+		 */
+		void stopMusic();
+
+		void setMasterGain(float gain);
+		void setSoundGain(float gain);
+		void setMusicGain(float gain);
 
 		/**
 		 * @brief 获取已加载音乐的指针，如果未加载则尝试加载。

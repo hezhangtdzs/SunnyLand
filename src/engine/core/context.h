@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../render/camera.h"
+
 namespace engine::input{
 	class InputManager;
 }
@@ -10,11 +12,15 @@ namespace engine::resource
 namespace engine::render
 {
 	class Renderer;
-	class Camera;
+	// Camera is included above.
 }
 namespace engine::physics
 {
 	class PhysicsEngine;
+}
+namespace engine::audio
+{
+	class AudioPlayer;
 }
 namespace engine::core
 {
@@ -26,12 +32,14 @@ namespace engine::core
 			engine::render::Camera& camera_;
 			engine::input::InputManager& input_manager_;
 			engine::physics::PhysicsEngine& physics_engine_;
+			engine::audio::AudioPlayer& audio_player_;
 	public:
 		Context(engine::render::Renderer& renderer,
 				engine::render::Camera& camera,
 				engine::resource::ResourceManager& resource_manager,
 				engine::input::InputManager& input_manager,
-				engine::physics::PhysicsEngine& physics_engine);
+				engine::physics::PhysicsEngine& physics_engine,
+				engine::audio::AudioPlayer& audio_player);
 			
 
 		Context(const Context&) = delete;
@@ -59,6 +67,10 @@ namespace engine::core
 		engine::physics::PhysicsEngine& getPhysicsEngine()
 		{
 			return physics_engine_;
+		}
+		engine::audio::AudioPlayer& getAudioPlayer()
+		{
+			return audio_player_;
 		}
 	};
 

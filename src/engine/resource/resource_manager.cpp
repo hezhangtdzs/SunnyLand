@@ -39,6 +39,12 @@ void engine::resource::ResourceManager::clearTextures(){
 MIX_Audio* engine::resource::ResourceManager::loadSound(const std::string& file_path) {
 	return audio_manager_->loadSound(file_path);
 }
+void engine::resource::ResourceManager::playSound(const std::string& file_path) {
+	audio_manager_->playSound(file_path);
+}
+void engine::resource::ResourceManager::stopSound() {
+	audio_manager_->stopSound();
+}
 MIX_Audio* engine::resource::ResourceManager::getSound(const std::string& file_path) {
 	return audio_manager_->getSound(file_path);
 }
@@ -50,6 +56,24 @@ void engine::resource::ResourceManager::clearSounds() {
 }
 MIX_Audio* engine::resource::ResourceManager::loadMusic(const std::string& file_path) {
 	return audio_manager_->loadMusic(file_path);
+}
+void engine::resource::ResourceManager::playMusic(const std::string& file_path) {
+	audio_manager_->playMusic(file_path);
+}
+void engine::resource::ResourceManager::stopMusic() {
+	audio_manager_->stopMusic();
+}
+
+void engine::resource::ResourceManager::setMasterGain(float gain) {
+	audio_manager_->setMasterGain(gain);
+}
+
+void engine::resource::ResourceManager::setSoundGain(float gain) {
+	audio_manager_->setSoundGain(gain);
+}
+
+void engine::resource::ResourceManager::setMusicGain(float gain) {
+	audio_manager_->setMusicGain(gain);
 }
 MIX_Audio* engine::resource::ResourceManager::getMusic(const std::string& file_path) {
 	return audio_manager_->getMusic(file_path);

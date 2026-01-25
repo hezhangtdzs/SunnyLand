@@ -28,6 +28,7 @@ namespace engine::render {
 		std::optional<engine::utils::Rect> limit_bounds_;
 		float smooth_speed_ = 5.0f;
 		engine::component::TransformComponent* target_ = nullptr; // 跟随目标
+		bool pixel_snap_{ true };
 
 	public:
 		/**
@@ -89,6 +90,9 @@ namespace engine::render {
 		 * @return glm::vec2 对应的世界位置。
 		 */
 		glm::vec2 screenToWorld(const glm::vec2& screen_pos) const;
+
+		void setPixelSnap(bool enabled) { pixel_snap_ = enabled; }
+		bool getPixelSnap() const { return pixel_snap_; }
 
 		/**
 		 * @brief 直接设置摄像机的世界坐标。

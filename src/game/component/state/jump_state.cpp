@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 
 #include "../player_component.h"
+#include "../../../engine/component/audio_component.h"
 #include "../../../engine/core/context.h"
 #include "../../../engine/component/physics_component.h"
 #include "../../../engine/component/transform_component.h"
@@ -18,6 +19,7 @@
 namespace game::component::state {
 	void JumpState::enter() {
 		playAnimation("jump");
+		// Sound playback is dispatched from the state machine input/update paths where Context is available.
 		player_component_->setCoyoteTimer(0.0f);
 		auto physics = player_component_->getPhysicsComponent();
 		float jump_force = player_component_->getJumpForce();

@@ -14,6 +14,7 @@
 #include "../scene/scene_manager.h"
 #include "../../game/scene/game_scene.h"
 #include "../physics/physics_engine.h"
+#include "../audio/audio_player.h"
 
 engine::core::GameApp::GameApp() = default;
 
@@ -54,6 +55,7 @@ bool engine::core::GameApp::init()
 		initInputManager() &&
 		initTime() && 
 		initResourceManager()&&
+		initAudioPlayer()&&
 		initRenderer()&&
 		initCamera()&&
 		initPhysicsEngine() &&
@@ -232,10 +234,25 @@ bool engine::core::GameApp::initContext()
 			*camera_,
 			*resource_manager_,
 			*input_manager_,
-			*physics_engine_);
+			*physics_engine_,
+			*audio_player_);
 	}
 	catch (const std::exception& e) {
 		spdlog::error("初始化上下文失败: {}", e.what());
+		return false;
+	}
+	return true;
+}
+
+bool engine::core::GameApp::initAudioPlayer()
+{
+	try
+	{
+		audio_player_ = std::make_unique<engine::audio::AudioPlayer>(*resource_manager_);
+	}
+	catch (const std::exception& e)
+	{
+		spdlog::error("初始化音频播放器失败: {}", e.what());
 		return false;
 	}
 	return true;

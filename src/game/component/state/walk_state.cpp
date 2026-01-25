@@ -10,6 +10,7 @@
 #include "../../../engine/component/sprite_component.h"
 #include "../../../engine/component/transform_component.h"
 #include "../../../engine/component/collider_component.h"
+#include "../../../engine/component/audio_component.h"
 #include "../../../engine/physics/physics_engine.h"
 #include <cmath>
 #include <glm/glm.hpp>
@@ -28,6 +29,9 @@ namespace game::component::state {
 
 		// 如果按下"jump"则切换到 JumpState
 		if (input_manager.isActionPressed("jump")) {
+			if (auto* audio = player_component_->getOwner()->getComponent<engine::component::AudioComponent>()) {
+				audio->playSound("jump", context);
+			}
 			return std::make_unique<JumpState>(player_component_);
 		}
 

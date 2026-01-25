@@ -1,5 +1,6 @@
 #include "camera.h"
 #include "../component/transform_component.h"
+	#include <cmath>
 	namespace engine::render {
 		/**
 		 * @brief 析构函数。
@@ -34,7 +35,12 @@
 		 * @return 转换后的屏幕坐标。
 		 */
 		glm::vec2 Camera::worldToScreen(const glm::vec2& world_pos) const {
-			return world_pos - position_;
+			glm::vec2 r = world_pos - position_;
+			if (pixel_snap_) {
+				r.x = std::round(r.x);
+				r.y = std::round(r.y);
+			}
+			return r;
 		}
 
 		/**
@@ -63,7 +69,12 @@
 		 * @return 转换后的世界坐标。
 		 */
 		glm::vec2 Camera::screenToWorld(const glm::vec2& screen_pos) const {
-			return screen_pos + position_;
+			glm::vec2 p = screen_pos;
+			if (pixel_snap_) {
+				p.x = std::round(p.x);
+				p.y = std::round(p.y);
+			}
+			return p + position_;
 		}
 
 		/**

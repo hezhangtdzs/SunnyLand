@@ -107,7 +107,7 @@
                 {
                  "name":"sound",
                  "type":"string",
-                 "value":"{\n  \"jump\":\"assets\/audio\/cartoon-jump-6462.mp3\",\n  \"hurt\":\"assets\/audio\/monster.mp3\",\n  \"dead\":\"assets\/audio\/dead-8bit-41400.mp3\"\n}"
+                 "value":"{\n  \"jump\":\"assets\/audio\/cartoon-jump-6462.mp3\",\n  \"hurt\":\"assets\/audio\/monster.mp3\",\n  \"dead\":\"assets\/audio\/dead-8bit-41400.mp3\",\n  \"stomp\":\"assets\/audio\/punch2a.mp3\"\n}"
                 }, 
                 {
                  "name":"tag",
@@ -264,6 +264,11 @@
                  "value":"{\n  \"idle\": {\"duration\": 200, \"frames\":[0,1,2,3,4,3,2,1]}\n}"
                 }, 
                 {
+                 "name":"sound",
+                 "type":"string",
+                 "value":"{\n  \"pickup\":\"assets\\/audio\\/poka01.mp3\"\n}"
+                }, 
+                {
                  "name":"tag",
                  "type":"string",
                  "value":"item"
@@ -305,6 +310,11 @@
                  "name":"animation",
                  "type":"string",
                  "value":"{\n  \"idle\": {\"duration\": 200, \"frames\":[0,1,2,3,4]}\n}"
+                }, 
+                {
+                 "name":"sound",
+                 "type":"string",
+                 "value":"{\n  \"pickup\":\"assets\\/audio\\/poka01.mp3\"\n}"
                 }, 
                 {
                  "name":"tag",

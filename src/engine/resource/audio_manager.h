@@ -40,8 +40,20 @@ namespace engine::resource {
 			}
 		};
 
+		/**
+		 * @struct TrackDeleter
+		 * @brief 用于 std::unique_ptr 的自定义删除器，负责销毁 MIX_Track。
+		 */
+		struct TrackDeleter {
+			void operator()(MIX_Track* t) const {
+				if (t) MIX_DestroyTrack(t);
+			}
+		};
+
 	private:
 		std::unique_ptr<MIX_Mixer, MixerDeleter> mixer_; ///< SDL_mixer 混音器设备指针
+		std::unique_ptr<MIX_Track, TrackDeleter> music_track_; ///< 专门播放 BGM 的轨道
+		std::unique_ptr<MIX_Track, TrackDeleter> sound_track_; ///< 专门播放 SFX 的轨道
 		std::unordered_map<std::string, std::unique_ptr<MIX_Audio, MixAudioDeleter>> music_; ///< 音乐资源缓存映射表 (文件路径 -> 资源指针)
 		std::unordered_map<std::string, std::unique_ptr<MIX_Audio, MixAudioDeleter>> sounds_; ///< 音效资源缓存映射表 (文件路径 -> 资源指针)
 
@@ -90,6 +102,14 @@ namespace engine::resource {
 		void clearSounds();
 
 		/**
+		 * @brief 播放音效（即发即弃模式）。
+		 * @param file_path 音效文件路径。
+		 */
+		void playSound(const std::string& file_path);
+
+		void stopSound();
+
+		/**
 		 * @brief 从文件路径加载背景音乐（Music）。
 		 * @param file_path 音乐文件的路径。
 		 * @return MIX_Audio* 指向加载后的音乐资源的指针。
@@ -115,9 +135,24 @@ namespace engine::resource {
 		void clearMusic();
 
 		/**
-		 * @brief 同时清空所有音效和音乐资源。
+		 * @brief 播放背景音乐（循环播放模式）。
+		 * @param file_path 音乐文件路径。
+		 */
+		void playMusic(const std::string& file_path);
+
+		/**
+		 * @brief 停止背景音乐播放。
+		 */
+		void stopMusic();
+
+		void setMusicGain(float gain);
+		void setSoundGain(float gain);
+		void setMasterGain(float gain);
+
+		/**
+		 * @brief 清理所有音频资源（包括音效和音乐）。
 		 */
 		void clearAudio();
-
 	};
-}
+
+} // namespace engine::resource

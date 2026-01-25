@@ -3,6 +3,7 @@
 #include "../physics_component.h"
 #include "../sprite_component.h"
 #include "../animation_component.h"
+#include "../audio_component.h"
 #include "../../object/game_object.h"
 
 engine::component::JumpBehavior::JumpBehavior(float xMin, float xMax, float moveSpeed, float jumpForce, float jumpCooldown)
@@ -32,6 +33,12 @@ void engine::component::JumpBehavior::update(engine::object::GameObject* owner, 
     if (!transform || !physics) return;
     
     bool onGround = physics->hasCollidedBelow();
+	if (onGround && !wasOnGround_) {
+		if (auto* audio = owner->getComponent<AudioComponent>()) {
+			audio->playSoundNearCamera("cry", context, 360.0f);
+		}
+	}
+	wasOnGround_ = onGround;
     
     if (onGround) {
         // 落地后立即停止水平移动，解决滑动问题

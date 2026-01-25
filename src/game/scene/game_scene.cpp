@@ -13,6 +13,9 @@
 #include "../../engine/component/health_component.h"
 #include "../../game/component/player_component.h"
 #include "../../engine/component/animation_component.h"
+#include "../../engine/component/audio_component.h"
+#include "../../engine/resource/resource_manager.h"
+
 #include "../../engine/physics/collider.h"
 #include "../../engine/scene/level_loader.h"
 #include "../../engine/input/input_manager.h"
@@ -32,8 +35,10 @@ namespace game::scene {
 
     void GameScene::init() {
         if (initLevel() && initPlayer() && initEnemyAndItem()) {
+            context_.getResourceManager().playMusic("assets/audio/platformer_level03_loop.ogg");
             spdlog::info("GameScene 初始化完成。");
         }
+
         Scene::init();
     }
 
@@ -111,7 +116,14 @@ namespace game::scene {
             return false;
         }
         context_.getCamera().setTarget(player_transform);
+
+		if (auto* audio = player_->getComponent<engine::component::AudioComponent>()) {
+			audio->setMinIntervalMs(80);
+			spdlog::trace("玩家音频组件已由关卡数据加载。");
+		}
+
         spdlog::trace("Player初始化完成。");
+
         return true;
     }
     bool GameScene::initEnemyAndItem()
@@ -220,6 +232,12 @@ namespace game::scene {
         // 踩踏判断成功，敌人受伤
         if (is_falling && is_above) {
             spdlog::info("玩家 {} 踩踏了敌人 {}", player->getName(), enemy->getName());
+			if (auto* player_audio = player->getComponent<engine::component::AudioComponent>()) {
+				player_audio->playSound("stomp", context_);
+			}
+			if (auto* audio = enemy->getComponent<engine::component::AudioComponent>()) {
+				audio->playSoundNearCamera("cry", context_, 420.0f);
+			}
             auto enemy_health = enemy->getComponent<engine::component::HealthComponent>();
             if (!enemy_health) {
                 // 如果敌人没血条也能被踩死（比如直接移除）
@@ -244,6 +262,9 @@ namespace game::scene {
 
     void GameScene::PlayerVSItemCollision(engine::object::GameObject* player, engine::object::GameObject* item)
     {
+		if (auto* audio = item->getComponent<engine::component::AudioComponent>()) {
+			audio->playSound("pickup", context_);
+		}
         if (item->getName() == "fruit" || item->getTag() == "fruit") {
             auto* health = player->getComponent<engine::component::HealthComponent>();
             if (health) health->heal(1);  // 加血
@@ -286,7 +307,15 @@ namespace game::scene {
     {
         auto* player_comp = player->getComponent<game::component::PlayerComponent>();
         if (player_comp) {
+			if (auto* audio = player->getComponent<engine::component::AudioComponent>()) {
+				audio->playSound("hurt", context_);
+			}
             player_comp->takeDamage(1);
+			if (auto* hc = player->getComponent<engine::component::HealthComponent>(); hc && !hc->isAlive()) {
+				if (auto* audio = player->getComponent<engine::component::AudioComponent>()) {
+					audio->playSound("dead", context_);
+				}
+			}
         }
     }
 

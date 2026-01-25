@@ -20,6 +20,7 @@
 | **nlohmann/json** | - | JSON 解析 |
 | **spdlog** | - | 日志系统 |
 | **Tiled** | - | 地图编辑器 |
+| **SDL3_mixer** | - | 音频解码与混音（BGM/SFX） |
 | **Physics (Custom)** | - | 轻量 2D 物理（重力/速度/受力积分） |
 
 ## 核心类图 (Core Class Diagram)
@@ -134,6 +135,52 @@ classDiagram
         -resource_manager_ : ResourceManager&
         -input_manager_ : InputManager&
         -physics_engine_ : PhysicsEngine&
+        -audio_player_ : AudioPlayer&
+    }
+
+    class AudioManager {
+        -mixer_ : MIX_Mixer*
+        -music_track_ : MIX_Track*
+        -sound_track_ : MIX_Track*
+        -music_ : map<string, MIX_Audio*>
+        -sounds_ : map<string, MIX_Audio*>
+        +getSound(path)
+        +getMusic(path)
+        +playSound(path)
+        +playMusic(path)
+        +stopSound()
+        +stopMusic()
+        +setMasterGain(gain)
+        +setSoundGain(gain)
+        +setMusicGain(gain)
+        +clearAudio()
+    }
+
+    class AudioPlayer {
+        -resource_manager_ : ResourceManager&
+        -master_volume_ : float
+        -sound_volume_ : float
+        -music_volume_ : float
+        -current_music_ : string
+        +playSound(path)
+        +playSoundSpatial(path, emitter_pos, listener_pos, max_distance)
+        +playMusic(path, loops)
+        +stopMusic()
+        +setMasterVolume(v)
+        +setSoundVolume(v)
+        +setMusicVolume(v)
+    }
+
+    class AudioComponent {
+        -action_sounds_ : map<string, string>
+        -last_play_ticks_ : map<string, uint64>
+        -min_interval_ms_ : uint64
+        +registerSound(action, path)
+        +playSound(id, ctx)
+        +playSoundSpatial(id, ctx, listener_pos, max_distance)
+        +playSoundNearCamera(id, ctx, max_distance)
+        +playDirect(path, ctx)
+        +setMinIntervalMs(ms)
     }
 
     class PhysicsEngine {
@@ -312,6 +359,7 @@ classDiagram
     GameApp "1" *-- "1" Renderer
     GameApp "1" *-- "1" InputManager
     GameApp "1" *-- "1" Camera
+    GameApp "1" *-- "1" AudioPlayer
     SceneManager "1" o-- "many" Scene
     Scene "1" *-- "many" GameObject
     Scene ..> LevelLoader : 使用加载器构建场景
@@ -326,6 +374,7 @@ classDiagram
     Component <|-- PlayerComponent
     Component <|-- AnimationComponent
     Component <|-- HealthComponent
+    Component <|-- AudioComponent
     Component <|-- AIComponent
     AIComponent "1" *-- "1" AIBehavior
     AIBehavior <|-- PatrolBehavior
@@ -354,6 +403,11 @@ classDiagram
     ColliderComponent ..> TransformComponent : 提供世界坐标AABB
     PhysicsEngine ..> ColliderComponent : 碰撞检测
     PhysicsEngine ..> TileLayerComponent : 瓦片碰撞分离
+
+    ResourceManager "1" *-- "1" AudioManager
+    Context "1" o-- "1" AudioPlayer
+    AudioPlayer ..> ResourceManager : 通过资源系统获取音频
+    AudioComponent ..> Context : 通过 Context 调用 AudioPlayer
 ```
 
 ## 主循环调用流程 (Main Loop Sequence)
@@ -365,6 +419,7 @@ sequenceDiagram
     participant Scene as Scene (e.g. GameScene)
     participant GO as GameObject
     participant Comp as Component
+    participant AP as AudioPlayer
 
     loop 每一帧 (Each Frame)
         App->>SM: update(dt)
@@ -376,6 +431,7 @@ sequenceDiagram
             Scene->>GO: update(dt, context)
             GO->>Comp: update(dt, context)
         end
+        Note over Comp,AP: 组件可在 update 内通过 Context.getAudioPlayer() 触发音效播放
         SM->>SM: processPendingActions() (延迟场景切换)
 
         App->>App: render()
@@ -394,6 +450,7 @@ sequenceDiagram
 src/
 ├── engine/             # 引擎核心
 │   ├── core/           # 基础框架 (App, Context, Time, Config)
+│   ├── audio/          # 音频播放封装 (AudioPlayer)
 │   ├── scene/          # 场景管理 (Scene, SceneManager, LevelLoader)
 │   ├── object/         # 游戏实体 (GameObject)
 │   ├── component/      # 组件系统
@@ -403,11 +460,13 @@ src/
 │   │   ├── collider_component.h
 │   │   ├── animation_component.h
 │   │   ├── health_component.h
+│   │   ├── audio_component.h
 │   │   ├── ai_component.h
 │   │   └── behaviors/  # AI 行为策略 (Patrol, UpDown, Jump)
 │   ├── physics/         # 物理系统 (PhysicsEngine)
 │   ├── render/         # 渲染基础 (Renderer, Camera, Sprite)
 │   ├── resource/       # 资源管理 (Texture, Font, Sound)
+│   │   └── audio_manager.h
 │   ├── input/          # 输入系统 (InputManager)
 │   └── utils/          # 工具类 (Alignment, Math)
 └── game/               # 游戏业务逻辑
@@ -447,11 +506,44 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 - **ResourceManager**: 内部持有 `TextureManager`, `FontManager`, `AudioManager`。
 - **自动引用计数**: 同一个路径的资源只会被加载一次，通过 `std::shared_ptr` 管理贴图等重型资源的生命周期。
 
-### 5. 动作映射系统 (Input Mapping)
+### 5. 音频系统 (Audio)
+
+本项目新增了基于 `SDL3_mixer` 的音频子系统，用于统一处理 **背景音乐（BGM）** 与 **音效（SFX）** 的加载、缓存与播放。
+
+#### 组成与职责
+
+- `engine::resource::AudioManager`
+  - 负责初始化/关闭 `SDL3_mixer` 设备。
+  - 采用懒加载 + 缓存：按文件路径缓存 `MIX_Audio`。
+  - 内部分离两条轨道：`music_track_`（BGM）与 `sound_track_`（SFX）。
+  - 提供 `setMasterGain/setMusicGain/setSoundGain` 作为底层增益控制入口。
+
+- `engine::audio::AudioPlayer`
+  - 面向“播放/控制”的高层封装，依赖 `ResourceManager` 间接访问 `AudioManager`。
+  - 提供 master/sound/music 三种音量倍率（float），并在播放时统一应用。
+  - 支持 `playSoundSpatial()`：根据发声体与监听者（通常是相机中心）的距离进行衰减，`max_distance` 之外可静音/不播放。
+  - 负责记录当前正在播放的 BGM（`current_music_`），避免重复切歌。
+
+- `engine::component::AudioComponent`
+  - 轻量组件：将“动作/事件（action/id）”映射到音频资源路径。
+  - 支持最小触发间隔节流（`min_interval_ms_`），避免例如“走路/落地”事件被每帧触发造成爆音。
+  - 支持通过 `playSoundNearCamera()` 直接以相机作为监听点触发空间化音效。
+
+#### 调用链路（SFX 示例）
+
+1) 业务/组件触发：`AudioComponent::playSound("jump", context)`
+
+2) 组件通过 `context.getAudioPlayer()` 调用：`AudioPlayer::playSound(path)`
+
+3) `AudioPlayer` 通过 `ResourceManager` 获取/复用音频资源并交给 `AudioManager` 播放
+
+> 约定：音频路径与其他资源一致，均以项目根目录为相对基准（例如 `assets/sounds/jump.wav`）。
+
+### 6. 动作映射系统 (Input Mapping)
 - 键盘按键不直接对应逻辑，而是映射为 **Actions** (如 `"move_left"`, `"jump"`, `"move_up"`, `"move_down"`)。
 - 在 `assets/config.json` 中配置按键绑定。
 
-### 6. 关卡加载 (Level Loading)
+### 7. 关卡加载 (Level Loading)
 - **从 Tiled 导入**: 使用 `LevelLoader` 解析 Tiled 编辑器导出的 JSON 格式 (`.tmj`) 地图。
 - **图块集支持**: 支持解析外部Tileset (`.tsj`)，包括大图 (`Image Collection`) 和单图集 (`Image`) 模式。
 - **图层解析**: 
@@ -461,12 +553,12 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
     - `Object Layer` -> `GameObject` (将Tiled对象实例化为带`Transform`, `Sprite`组件的实体)。
 - **路径解析**: 自动处理相对路径，确保纹理资源正确加载。
 
-### 7. 视差滚动 (Parallax Scrolling)
+### 8. 视差滚动 (Parallax Scrolling)
 - **ParallaxComponent**: 专门负责渲染背景图层的组件。
 - **视差因子 (Factor)**: 通过 `parallax_factor_` 控制背景随相机移动的速度（例如 `0.2` 表示背景移动速度是相机的 0.2 倍，产生远景效果）。
 - **Offset 支持**: 正确处理 Tiled 中的 `offsetx/offsety` 偏移量。
 
-### 8. 动画系统 (Animation System)
+### 9. 动画系统 (Animation System)
 - **基于时间的播放**: 动画逻辑与帧率无关。`AnimationComponent` 通过累计 `delta_time` 并在 `Animation` 对象中检索对应时刻的 `AnimationFrame`。
 - **循环控制**: 
     - 循环动画使用 `fmod` 处理溢出时间，确保循环逻辑无漂移。
@@ -474,7 +566,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 - **数据驱动**: 动画数据可以直接定义在 Tiled 的 Tileset 属性中（JSON 字符串格式），由 `LevelLoader` 自动解析并挂载。
 - **与 Sprite 交互**: `AnimationComponent` 每帧计算出当前的 `src_rect` 后，直接调用 `SpriteComponent::setSourceRect()` 更新渲染内容。
 
-### 9. 物理系统 (Physics)
+### 10. 物理系统 (Physics)
 
 - **PhysicsEngine**: 维护所有 `PhysicsComponent` 的注册列表，并在每帧统一调用 `update(dt)`。
 - **PhysicsComponent**: 作为组件挂载到 `GameObject` 上，内部持有速度、受力、质量等数据，并在 `init/clean` 时向 `PhysicsEngine` 注册/注销。
@@ -528,14 +620,14 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 
 在 `GameScene::update()` 中会调用 `TestCollisionPairs()`，每帧遍历并打印 `PhysicsEngine::getCollisionPairs()`。
 
-### 10. 碰撞系统 (Collision)
+### 11. 碰撞系统 (Collision)
 
 - **Collider / ColliderType**：形状定义，当前支持 `AABB` 与 `CIRCLE`。
 - **ColliderComponent**：挂载到 `GameObject` 上，持有 `Collider`，并可计算世界坐标 AABB（`getWorldAABB()`）。
 - **collision 命名空间**：提供检测函数（`checkCollision`、`checkAABBOverlap`、`checkCircleOverlap`、`checkPointInCircle` 等）。
 - **接入点**：`PhysicsEngine::checkObjectCollisions()` 调用 `collision::checkCollision()`，并记录碰撞对到 `collision_pairs_`。
 
-### 11. Transform / Alignment 约定（渲染与碰撞坐标基准）
+### 12. Transform / Alignment 约定（渲染与碰撞坐标基准）
 
 本项目中多个组件都会把 `TransformComponent::position` 当作“锚点”，其实际世界左上角由各组件的 `Alignment` 计算出的 `offset_` 决定：
 
@@ -554,7 +646,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 - 让 `SpriteComponent` 与 `ColliderComponent` 使用一致的 `Alignment`（例如都用 `TOP_LEFT` 或都用 `CENTER`）。
 - 或制定全局约定：`Transform.position` 永远表示左上角/永远表示中心，并让所有组件遵循。
 
-### 12. 玩家状态机 (Player State Machine)
+### 13. 玩家状态机 (Player State Machine)
 
 本项目使用 **状态模式 (State Pattern)** 管理玩家的复杂行为逻辑。
 
@@ -577,19 +669,19 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
   - `DeadState`: 死亡状态。进入时播放死亡动画，禁用大部分输入处理，准备从场景移除。
   - `ClimbState`: 攀爬状态。在梯子范围内触发。进入时禁用重力，允许垂直移动和微量水平位移，通过检测梯子范围自动退出或切出跳转。
 
-### 13. 生命值系统 (Health System)
+### 14. 生命值系统 (Health System)
 
 - **HealthComponent**: 独立管理实体的生命值生命周期。
   - **无敌帧 (Invincibility Frames)**: 采用计时器机制。受伤后 `invincibility_timer_` 被设为 `invincibility_duration_`，随后随时间递减（在 `update` 中处理）。只要计时器大于 0，`isInvincible()` 即返回 true，实体免受伤害。
   - **受击逻辑**: `takeDamage()` 包含无敌状态检查。扣血成功后，会自动触发无敌计时。
 - **与状态机连接**: `PlayerComponent` 监听生命值变化并根据无敌计时器驱动 `SpriteComponent` 实现闪烁反馈。当 `HealthComponent` 触发扣血时，`PlayerComponent` 会切换到 `HurtState` 或 `DeadState`。
 
-### 14. 危险处理与场景反馈 (Hazard Processing & Feedback)
+### 15. 危险处理与场景反馈 (Hazard Processing & Feedback)
 
 - **处理统一化**: `GameScene::processHazardDamage()` 统一处理玩家受到的环境伤害（如尖刺瓦片或尖刺对象），确保伤害判定的触发逻辑一致。
 - **效果对齐**: `GameScene::createEffect()` 支持多种标签（如 "enemy", "item"），并根据动画帧尺寸自动应用位置偏移，确保特效中心点与触发位置精准重叠。
 
-### 15. 状态机与物理系统的交互 (Physics & State Machine Interaction)
+### 16. 状态机与物理系统的交互 (Physics & State Machine Interaction)
 
 - **碰撞标记 (Collision Flags)**: `PhysicsComponent` 实时维护四个方向的碰撞标记：`below`, `above`, `left`, `right`。
 - **状态切换依据**: 
@@ -599,7 +691,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
   - **攀爬交互**: `ClimbState` 会修改 `PhysicsComponent` 的 `climbing` 标志并调用 `setUseGravity(false)`。在更新逻辑中通过在头、中、足三个关键采样点探测 `LADDER` 瓦片来判断玩家是否仍处于梯子有效区域。
 - **输入处理辅助**: `PlayerComponent::processMovementInput()` 封装了左右移动的力学逻辑。在空中状态（`Jump/Fall`）调用时通常会传入较小的速度系数（如 `0.5f`）以实现受限的空中控制。
 
-### 16. AI 行为系统 (AI Behavior System)
+### 17. AI 行为系统 (AI Behavior System)
 
 本项目采用 **策略模式 (Strategy Pattern)** 实现敌人的 AI 逻辑。
 
@@ -611,7 +703,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
   - `UpDownBehavior`: 垂直飞行巡逻。常用于 Eagle 等飞行敌人。
   - `JumpBehavior`: 周期性跳跃移动。模拟 Frog 的动作，结合物理引擎实现抛物线跳跃。
 
-### 17. 战斗判定 (Combat Detection)
+### 18. 战斗判定 (Combat Detection)
 
 - **踩踏判定 (Stomp Logic)**:
   - 优化后的 `PlayerVSEnemyCollision` 不再仅依赖重叠区域的长宽比。
@@ -636,6 +728,20 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 - 关闭重力：`setUseGravity(false)`
 - 施加一次性力：`addForce(...)`（会在该帧计算完后清空）
 - 直接设置速度：`setVelocity(...)`（用于跳跃/冲量类效果）
+
+### 5. 使用音频系统（示例）
+
+#### 方式 A：组件内按 action/id 播放
+
+- 给对象添加音频组件：`addComponent<AudioComponent>()`
+- 注册音效映射：`registerSound("jump", "assets/sounds/jump.wav")`
+- 设置节流（可选）：`setMinIntervalMs(80)`
+- 触发播放：`playSound("jump", context)`
+
+#### 方式 B：直接播放路径
+
+- 直接播放某个文件：`context.getAudioPlayer().playSound("assets/sounds/coin.wav")`
+- 播放 BGM：`context.getAudioPlayer().playMusic("assets/music/level1.ogg")`
 
 ### 3. 性能优化
 - **避免在每帧 `update` 中分配内存**: 尽量复用对象。
@@ -691,6 +797,8 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 | **Scene** | 场景基类，容纳游戏对象。 | `init()`, `update()`, `render()`, `addGameObject()` | 抽象基类 |
 | **Renderer** | 绘图核心，封装对 SDL 渲染 API 的底层调用。 | `drawSprite()`, `clearScreen()`, `present()` | 单例模式 |
 | **ResourceManager**| 资源管家，负责图片、字体、声音的加载与缓存。 | `getTexture()`, `getFont()`, `getSound()` | 自动引用计数 |
+| **AudioManager** | 音频资源管理器，负责初始化混音器并缓存音乐/音效资源。 | `getSound()`, `getMusic()`, `playSound()`, `playMusic()` | 基于 `SDL3_mixer` |
+| **AudioPlayer** | 高层播放控制器，统一音量、BGM 切换与空间化播放。 | `playSound()`, `playSoundSpatial()`, `playMusic()`, `stopMusic()` | 通过 `Context` 全局访问 |
 | **InputManager** | 输入管理器，处理键盘、鼠标、手柄输入。 | `isActionDown()`, `isActionPressed()`, `Update()` | 动作映射系统 |
 | **Camera** | 相机系统，控制视图位置。 | `move()`, `setPosition()`, `getPosition()` | 影响所有渲染 |
 | **Context** | 系统上下文，提供对各个管理器的访问。 | `getRenderer()`, `getCamera()`, `getResourceManager()` | 依赖注入 |
@@ -698,6 +806,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 | **ColliderComponent** | 碰撞组件，提供碰撞体形状并计算世界坐标 AABB。 | `getWorldAABB()`, `getCollider()` | 参与碰撞检测 |
 | **PhysicsComponent** | 物理组件，保存质量/速度/受力并影响 Transform。 | `addForce()`, `setVelocity()` | 由 PhysicsEngine 驱动 |
 | **HealthComponent** | 生命值组件，管理 HP、受伤、治疗及无敌帧计时。 | `takeDamage()`, `isInvincible()`, `isAlive()` | 支持自动无敌反馈逻辑 |
+| **AudioComponent** | 音频组件，将动作/事件映射到音频路径并触发播放（含节流/空间化）。 | `registerSound()`, `playSound()`, `playSoundNearCamera()` | 依赖 `Context` |
 | **PlayerComponent** | 玩家控制组件，通过状态机驱动玩家行为逻辑。 | `processMovementInput()`, `setState()` | 业务逻辑核心 |
 | **PlayerState** | 玩家状态抽象，定义了不同动作下的行为逻辑。 | `handleInput()`, `update()` | 状态模式实现 |
 | **AIComponent** | **AI 逻辑组件**，通过注入不同的 Behavior 策略实现各种敌人行为。 | `setBehavior()`, `update()` | 策略模式实现 |
