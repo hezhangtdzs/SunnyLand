@@ -31,7 +31,9 @@ namespace engine::component {
 		SLOPE_1_2, ///< 2x1 下降斜坡的前半段 (左1右0.5)
 		SLOPE_2_0, ///< 2x1 下降斜坡的后半段 (左0.5右0)
 		HAZARD,    ///< 危险区域，玩家接触后会受到伤害
+		LADDER,    ///< 梯子，玩家可以攀爬
 	};
+
 
 	/**
 	 * @struct TileInfo

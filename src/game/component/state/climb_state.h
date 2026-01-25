@@ -1,21 +1,25 @@
 #pragma once
+
 #include "player_state.h"
 
-namespace game::component::state {
+namespace game::component::state
+{
 	/**
-	 * @brief 玩家死亡状态。
-	 *
-	 * 在此状态下，玩家将停止更新物理交互，播放死亡动画并准备从场景中移除。
+	 * @brief 玩家攀爬状态。
 	 */
-	class DeadState : public PlayerState {
+	class ClimbState final : public PlayerState {
 	public:
-		explicit DeadState(game::component::PlayerComponent* player_component)
+		ClimbState(PlayerComponent* player_component)
 			: PlayerState(player_component) {}
-
-	private:
+		~ClimbState() override = default;
+	protected:
 		void enter() override;
 		void exit() override;
+
 		std::unique_ptr<PlayerState> handleInput(engine::core::Context& context) override;
 		std::unique_ptr<PlayerState> update(float delta_time, engine::core::Context& context) override;
+
+	private:
+		float climb_speed_{ 120.0f }; ///< 攀爬移动速度
 	};
 }

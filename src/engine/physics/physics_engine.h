@@ -68,7 +68,11 @@ namespace engine::physics {
 			return tile_trigger_events_;
 		};
 
+		engine::component::TileType getTileTypeAt(const glm::vec2& world_pos) const;
+		bool tryGetLadderColumnCenterX(const glm::vec2& world_pos, float& out_center_x) const;
+
 	private:
+
 		// 新增：碰撞检测循环
 		void checkObjectCollisions();
 		float getTileHeightAtWidth(float width, engine::component::TileType type, glm::vec2 tile_size);

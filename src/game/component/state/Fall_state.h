@@ -3,6 +3,9 @@
 #include <memory>
 
 namespace game::component::state {
+	/**
+	 * @brief 玩家空中下落状态。
+	 */
 	class FallState final : public PlayerState {
 	public:
 		FallState(PlayerComponent* player_component)

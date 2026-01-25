@@ -3,6 +3,9 @@
 #include <memory>
 
 namespace game::component::state {
+	/**
+	 * @brief 玩家行走状态。
+	 */
 	class WalkState final : public PlayerState {
 	public:
 		WalkState(PlayerComponent* player_component)

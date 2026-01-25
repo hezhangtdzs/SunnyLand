@@ -35,6 +35,50 @@ void engine::physics::PhysicsEngine::unregisterCollisionLayer(component::TileLay
 	spdlog::info("瓦片图层组件注册注销 {}", static_cast<void*>(tilelayer_component));
 }
 
+engine::component::TileType engine::physics::PhysicsEngine::getTileTypeAt(const glm::vec2& world_pos) const
+{
+	engine::component::TileType result = engine::component::TileType::NORMAL;
+	for (auto* layer : tilelayer_components_) {
+		if (layer) {
+			auto type = layer->getTileTypeAtWorldPos(world_pos);
+			if (type == engine::component::TileType::LADDER) return type; // 优先探测梯子
+			if (type != engine::component::TileType::EMPTY && type != engine::component::TileType::NORMAL) {
+				result = type; // 记录其他非空类型（如 SOLID），但继续寻找 LADDER
+			}
+		}
+	}
+	return result;
+}
+
+bool engine::physics::PhysicsEngine::tryGetLadderColumnCenterX(const glm::vec2& world_pos, float& out_center_x) const
+{
+	using engine::component::TileType;
+	for (auto* layer : tilelayer_components_) {
+		if (!layer || layer->isHidden()) continue;
+
+		const glm::vec2 tile_size = glm::vec2(layer->getTileSize());
+		if (tile_size.x <= 0.0f || tile_size.y <= 0.0f) continue;
+
+		// 计算图层世界坐标偏移
+		glm::vec2 layer_world_offset = layer->getOffset();
+		if (auto* layer_owner = layer->getOwner()) {
+			if (auto* tc = layer_owner->getComponent<engine::component::TransformComponent>()) {
+				layer_world_offset += tc->getPosition();
+			}
+		}
+
+		glm::ivec2 tile_coords = glm::floor((world_pos - layer_world_offset) / tile_size);
+		TileType type = layer->getTileTypeAt(tile_coords);
+		if (type != TileType::LADDER) continue;
+
+		// 返回梯子所在列的中心 X
+		out_center_x = layer_world_offset.x + (static_cast<float>(tile_coords.x) + 0.5f) * tile_size.x;
+		return true;
+	}
+	return false;
+}
+
+
 void engine::physics::PhysicsEngine::update(float delta_time)
 {
 	collision_pairs_.clear();
@@ -48,6 +92,7 @@ void engine::physics::PhysicsEngine::update(float delta_time)
 
         // 重置碰撞标志
         pc->resetCollisionFlags();
+		pc->tickSnapSuppression(dt);
 
 		const float mass = pc->getMass();
 		if (!(mass > 0.0f) || !std::isfinite(mass)) {
@@ -476,8 +521,15 @@ void engine::physics::PhysicsEngine::resolveYAxisCollision(
         return getTypeAt(tx, ty) == TileType::SOLID;
     };
      auto isUnisolid = [&](int tx, int ty) {
-        return getTypeAt(tx, ty) == TileType::UNISOLID;
+        TileType type = getTypeAt(tx, ty);
+        if (type == TileType::UNISOLID) return true;
+        // 如果是梯子顶端，且玩家不在攀爬状态，则视为单向平台（支持在梯子顶端站立和走过）
+        if (type == TileType::LADDER && !pc->isClimbing()) {
+            if (getTypeAt(tx, ty - 1) != TileType::LADDER) return true;
+        }
+        return false;
     };
+
     auto isSlope = [&](TileType t) {
         switch (t) {
         case TileType::SLOPE_0_1:
@@ -516,13 +568,19 @@ void engine::physics::PhysicsEngine::resolveYAxisCollision(
                 new_pos.y = layer_offset.y + static_cast<float>(tile_y) * tile_size_vec.y - collider_size.y;
                 pc->velocity_.y = 0.0f;
                 pc->setCollidedBelow(true);
-            } else {
-                // Slope snap logic (Stickiness)
-                const float snap_distance = 6.0f; // 允许的吸附距离
+			} else {
+				// 吸附逻辑 (Stickiness)：处理斜坡和单向平台（包含梯子顶端）
+				// 起跳和向上运动期间禁用吸附，避免被斜坡重新“拽回地面”产生滑行/贴地。
+				// 某些情况下（例如同时按左右触发额外的水平碰撞修正），会产生很小的向下 dy，导致误触发吸附。
+				if (pc->isSnapSuppressed() || pc->velocity_.y < 0.0f) {
+					aabb_pos.y = new_pos.y;
+					return;
+				}
+                const float snap_distance = 8.0f; 
                 float min_ground_y = 1e9f;
-                bool found_slope = false;
+                bool found_target = false;
 
-                auto checkSlope = [&](int tx, int ty) {
+                auto checkSnapTarget = [&](int tx, int ty) {
                     if (tx < 0 || tx >= layer_width || ty < 0 || ty >= layer_height) return;
                     TileType t = getTypeAt(tx, ty);
                     if (isSlope(t)) {
@@ -534,20 +592,26 @@ void engine::physics::PhysicsEngine::resolveYAxisCollision(
                         float g_y = layer_offset.y + static_cast<float>(ty + 1) * tile_size_vec.y - h;
                         if (g_y < min_ground_y) {
                             min_ground_y = g_y;
-                            found_slope = true;
+                            found_target = true;
+                        }
+                    } else if (isUnisolid(tx, ty)) {
+                        float g_y = layer_offset.y + static_cast<float>(ty) * tile_size_vec.y;
+                        // 确保玩家是从平台上方向下落 (脚底在平台上方或略微陷入)
+                        if (g_y < min_ground_y && (aabb_pos.y + collider_size.y) <= g_y + eps) {
+                            min_ground_y = g_y;
+                            found_target = true;
                         }
                     }
                 };
 
-                // 检查当前行和下一行（走下坡可能跨行）
-                checkSlope(tile_x_left, tile_y);
-                checkSlope(tile_x_right, tile_y);
-                checkSlope(tile_x_left, tile_y + 1);
-                checkSlope(tile_x_right, tile_y + 1);
+                // 检查当前行和下一行
+                checkSnapTarget(tile_x_left, tile_y);
+                checkSnapTarget(tile_x_right, tile_y);
+                checkSnapTarget(tile_x_left, tile_y + 1);
+                checkSnapTarget(tile_x_right, tile_y + 1);
 
-                if (found_slope) {
+                if (found_target) {
                     float current_bottom = new_pos.y + collider_size.y;
-                    // 如果在斜坡上方一定距离内，则吸附。使用更稳健的比较。
                     if (current_bottom >= min_ground_y - eps || (pc->velocity_.y >= 0 && current_bottom > min_ground_y - snap_distance)) {
                         new_pos.y = min_ground_y - collider_size.y;
                         pc->velocity_.y = 0.0f;

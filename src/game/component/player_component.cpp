@@ -8,6 +8,9 @@
 #include "state/hurt_state.h"
 #include "state/dead_state.h"
 #include "../../engine/input/input_manager.h" // Needed for InputManager
+#include "../../engine/component/collider_component.h"
+#include "../../engine/physics/physics_engine.h"
+#include "../../engine/core/context.h"
 #include <spdlog/spdlog.h>
 
 engine::component::AnimationComponent* game::component::PlayerComponent::getAnimationComponent() const
@@ -39,7 +42,32 @@ bool game::component::PlayerComponent::takeDamage(int damage)
 	return false;
 }
 
+bool game::component::PlayerComponent::isOverLadder(engine::core::Context& context) const
+{
+	auto* collider = owner_->getComponent<engine::component::ColliderComponent>();
+	if (!collider) return false;
+	auto aabb = collider->getWorldAABB();
+
+	auto& physics_engine = context.getPhysicsEngine();
+
+	// 进入攀爬只允许“玩家中心轴线正下方”是梯子。
+	// 但顶部平台/轴分离碰撞会导致脚底探测点刚好落在平台 tile 上，因此这里做一个小范围向下采样。
+	glm::vec2 center = aabb.position + aabb.size * 0.5f;
+
+	// 从顶部向下进入：在脚底下方做范围探测（最多 1 格）
+	const float base_y = aabb.position.y + aabb.size.y;
+	for (float dy = 2.0f; dy <= 18.0f; dy += 4.0f) {
+		if (physics_engine.getTileTypeAt(glm::vec2(center.x, base_y + dy)) == engine::component::TileType::LADDER) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 void game::component::PlayerComponent::setState(std::unique_ptr<state::PlayerState> new_state)
+
 {
 	if (current_state_) {
 		current_state_->exit();
@@ -100,6 +128,10 @@ void game::component::PlayerComponent::update(float delta_time, engine::core::Co
 		if (new_state) {
 			setState(std::move(new_state));
 		}
+	}
+
+	if (coyote_timer_ > 0.0f) {
+		coyote_timer_ -= delta_time;
 	}
 
 	// 处理受伤后的闪烁效果

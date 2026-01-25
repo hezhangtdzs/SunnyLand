@@ -179,10 +179,13 @@ classDiagram
         -collided_above_ : bool
         -collided_left_ : bool
         -collided_right_ : bool
+        -climbing_ : bool
         +addForce(vec2)
         +setVelocity(vec2)
         +setMass(float)
         +setUseGravity(bool)
+        +setClimbing(bool)
+        +isClimbing() : bool
         +hasCollidedBelow() : bool
         +hasCollidedAbove() : bool
         +hasCollidedLeft() : bool
@@ -249,6 +252,13 @@ classDiagram
         +update()
     }
 
+    class ClimbState {
+        +enter()
+        +exit()
+        +handleInput()
+        +update()
+    }
+
     class HealthComponent {
         -maxHealth_ : int
         -currentHealth_ : int
@@ -291,7 +301,11 @@ classDiagram
 
     class Camera {
         -position_ : vec2
+        -target_ : TransformComponent*
+        -smooth_speed_ : float
         +move(vec2)
+        +setTarget(TransformComponent*)
+        +update(dt)
     }
 
     GameApp "1" *-- "1" SceneManager
@@ -328,6 +342,7 @@ classDiagram
     PlayerState <|-- FallState
     PlayerState <|-- HurtState
     PlayerState <|-- DeadState
+    PlayerState <|-- ClimbState
     Collider <|-- AABBCollider
     Collider <|-- CircleCollider
     SpriteComponent ..> TransformComponent : 依赖位置
@@ -381,7 +396,15 @@ src/
 │   ├── core/           # 基础框架 (App, Context, Time, Config)
 │   ├── scene/          # 场景管理 (Scene, SceneManager, LevelLoader)
 │   ├── object/         # 游戏实体 (GameObject)
-│   ├── component/      # 组件系统 (Transform, Sprite, Parallax, TileLayer)
+│   ├── component/      # 组件系统
+│   │   ├── transform_component.h
+│   │   ├── sprite_component.h
+│   │   ├── physics_component.h
+│   │   ├── collider_component.h
+│   │   ├── animation_component.h
+│   │   ├── health_component.h
+│   │   ├── ai_component.h
+│   │   └── behaviors/  # AI 行为策略 (Patrol, UpDown, Jump)
 │   ├── physics/         # 物理系统 (PhysicsEngine)
 │   ├── render/         # 渲染基础 (Renderer, Camera, Sprite)
 │   ├── resource/       # 资源管理 (Texture, Font, Sound)
@@ -425,7 +448,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 - **自动引用计数**: 同一个路径的资源只会被加载一次，通过 `std::shared_ptr` 管理贴图等重型资源的生命周期。
 
 ### 5. 动作映射系统 (Input Mapping)
-- 键盘按键不直接对应逻辑，而是映射为 **Actions** (如 `"move_left"`, `"jump"`)。
+- 键盘按键不直接对应逻辑，而是映射为 **Actions** (如 `"move_left"`, `"jump"`, `"move_up"`, `"move_down"`)。
 - 在 `assets/config.json` 中配置按键绑定。
 
 ### 6. 关卡加载 (Level Loading)
@@ -434,6 +457,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 - **图层解析**: 
     - `Image Layer` -> `ParallaxComponent` (支持部分滚动因子，用于远景)。
     - `Tile Layer` -> `TileLayerComponent` (支持剔除渲染与对齐修正)。
+        - **物理类型支持**: 支持 `SOLID` (碰撞)、`HAZARD` (伤害区域)、`LADDER` (可攀爬区域) 以及多种角度的 `SLOPE` (斜坡)。
     - `Object Layer` -> `GameObject` (将Tiled对象实例化为带`Transform`, `Sprite`组件的实体)。
 - **路径解析**: 自动处理相对路径，确保纹理资源正确加载。
 
@@ -483,8 +507,17 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
     - **自动吸附 (Snap/Stickiness)**: 在 `resolveYAxisCollision` 中实现了吸附逻辑，允许玩家在走下坡时保持贴地，避免因重力积分滞后导致的脱离地面和状态闪烁。
     - **即时状态更新**: 在水平移动（X轴）发生斜坡修正时，立即更新 `collided_below_` 标志，确保后续逻辑（如下一帧的初速度判定）正确。
     - **判定鲁棒性**: 选取检测范围内 Y 值最小（即物理高度最高）的斜坡面作为支撑面，彻底消除多重碰撞重叠时的“弹出”Bug。
+    - **吸附禁用 (Snap Suppression)**: 提供的 `suppressSnapFor(seconds)` 方法允许状态机在起跳或特殊切出时暂时禁用吸附逻辑，防止被 Stickiness 拉回斜坡。
+  - **梯子中心对齐**: 在进入攀爬（尤其是从上方边缘下落进入）时，引擎会自动计算梯子列的中心 X 坐标并将玩家吸附过去，确保动画展现的对齐。
   - 采样瓦片坐标时使用与 `TileLayerComponent::getTileTypeAtWorldPos()` 一致的世界偏移：`layer->getOffset() + layer_owner->Transform.position`，避免渲染与碰撞坐标系不一致。
   - 发生碰撞时将对应轴速度分量置零（例如撞墙清零 `velocity_.x`，落地清零 `velocity_.y`）。
+
+### 每个场景的独特系统 (Scene Specific Systems)
+
+#### 1. 相机平滑跟随 (Smooth Camera Follow)
+- **目标绑定**: `Camera` 支持绑定一个 `TransformComponent` 作为 `target_`。
+- **平滑插值**: 使用 `glm::mix` (Lerp) 实现基于时间的平滑位移，计算公式为 `current = mix(current, target, factor * dt)`，有效滤除角色快速运动引起的视觉抖动。
+- **边界约束**: 使用 `clampPosition` 确保相机不会露出地图黑边。
 
 #### 调试用例（GameScene）
 
@@ -538,10 +571,11 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 - **具体状态**:
   - `IdleState`: 待机状态。检测移动输入切换 `WalkState`，检测跳跃切换 `JumpState`，检测下落。
   - `WalkState`: 移动状态。处理移动输入，检测停止输入回 `IdleState`。
-  - `JumpState`: 跳跃上升状态。进入时施加向上速度。空中可移动。检测 Y 轴速度向下切换 `FallState`。
-  - `FallState`: 下落状态。空中可移动。检测地面碰撞 (`hasCollidedBelow`) 切换 `Idle/Walk`。
+  - `JumpState`: 跳跃上升状态。进入时施加向上速度，并进行微小的垂直位移（抬升）以确保离开地表。起跳瞬间会调用 `suppressSnapFor()` 禁用斜坡吸附，防止在斜坡边缘被立即拉回。同时会重置“土狼计时器”为 0。空中可移动，检测 Y 轴速度向下切换 `FallState`。
+  - `FallState`: 下落状态。空中可移动。检测地面碰撞 (`hasCollidedBelow`) 切换 `Idle/Walk`。支持“土狼计时器” (Coyote Time)：允许玩家在离开平台后的短暂宽限期内仍然可以起跳。
   - `HurtState`: 受伤状态。进入时播放受伤动画，通常在受击瞬间从其他状态切入。
   - `DeadState`: 死亡状态。进入时播放死亡动画，禁用大部分输入处理，准备从场景移除。
+  - `ClimbState`: 攀爬状态。在梯子范围内触发。进入时禁用重力，允许垂直移动和微量水平位移，通过检测梯子范围自动退出或切出跳转。
 
 ### 13. 生命值系统 (Health System)
 
@@ -559,8 +593,10 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 
 - **碰撞标记 (Collision Flags)**: `PhysicsComponent` 实时维护四个方向的碰撞标记：`below`, `above`, `left`, `right`。
 - **状态切换依据**: 
-  - `IdleState` 和 `WalkState` 会每帧检查 `!hasCollidedBelow()`，如果为真则代表玩家悬空，立即切换到 `FallState`。
+  - `IdleState` 和 `WalkState` 会每帧检查 `!hasCollidedBelow()`，如果为真则代表玩家悬空，此时会设置“土狼计时器”并立即切换到 `FallState`。
+  - `FallState` 会检查 `coyote_timer_`，如果大于 0 且按下跳跃键，则允许返回 `JumpState`。
   - `FallState` 会每帧检查 `hasCollidedBelow()`，如果为真则代表玩家落地，立即切换到 `IdleState` 或 `WalkState`。
+  - **攀爬交互**: `ClimbState` 会修改 `PhysicsComponent` 的 `climbing` 标志并调用 `setUseGravity(false)`。在更新逻辑中通过在头、中、足三个关键采样点探测 `LADDER` 瓦片来判断玩家是否仍处于梯子有效区域。
 - **输入处理辅助**: `PlayerComponent::processMovementInput()` 封装了左右移动的力学逻辑。在空中状态（`Jump/Fall`）调用时通常会传入较小的速度系数（如 `0.5f`）以实现受限的空中控制。
 
 ### 16. AI 行为系统 (AI Behavior System)
@@ -756,9 +792,6 @@ render()   │
     └──────┘
     ↓
 GameObject 销毁时自动析构
-```
-
----
 
 
 

@@ -463,8 +463,12 @@ namespace engine::scene {
                 else if (property.value("name", "") == "hazard") {
                     return property.value("value", false) ? engine::component::TileType::HAZARD : engine::component::TileType::NORMAL;
                 }
+                else if (property.value("name", "") == "ladder") {
+                    return property.value("value", false) ? engine::component::TileType::LADDER : engine::component::TileType::NORMAL;
+                }
             }
         }
+
         return engine::component::TileType::NORMAL;
     }
 

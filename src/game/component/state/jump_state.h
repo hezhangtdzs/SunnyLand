@@ -3,6 +3,9 @@
 #include <memory>
 
 namespace game::component::state {
+	/**
+	 * @brief 玩家跳跃上升状态。
+	 */
 	class JumpState final : public PlayerState {
 	public:
 		JumpState(PlayerComponent* player_component)
