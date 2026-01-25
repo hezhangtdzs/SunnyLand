@@ -22,14 +22,15 @@
 #include "../../engine/render/camera.h"
 #include "../../engine/render/animation.h"
 #include "../../engine/physics/physics_engine.h"
+#include "../../engine/scene/scene_manager.h"
 #include <spdlog/spdlog.h>
 #include <SDL3/SDL_rect.h>
 
 namespace game::scene {
 
     // 构造函数：调用基类构造函数
-    GameScene::GameScene(std::string name, engine::core::Context& context, engine::scene::SceneManager& scene_manager)
-        : Scene(name, context, scene_manager) {
+    GameScene::GameScene(std::string name, engine::core::Context& context, engine::scene::SceneManager& scene_manager, std::string level_path)
+        : Scene(name, context, scene_manager), level_path_(std::move(level_path)) {
         spdlog::trace("GameScene 构造完成。");
     }
 
@@ -64,8 +65,8 @@ namespace game::scene {
     {
         // 加载关卡（level_loader通常加载完成后即可销毁，因此不存为成员变量）
         engine::scene::LevelLoader level_loader;
-        if (!level_loader.loadLevel("assets/maps/level1.tmj", *this)) {
-            spdlog::error("关卡加载失败");
+        if (!level_loader.loadLevel(level_path_, *this)) {
+            spdlog::error("关卡加载失败: {}", level_path_);
             return false;
         }
 
@@ -182,6 +183,31 @@ namespace game::scene {
         for (const auto& pair : collision_pairs) {
             auto* obj1 = pair.first;
             auto* obj2 = pair.second;
+
+            // 处理关卡切换触发器
+            auto checkLevelSwitch = [&](engine::object::GameObject* p, engine::object::GameObject* trigger) {
+                if (p->getName() == "player" && (trigger->getTag() == "next_level" || trigger->getName() == "win")) {
+                    if (trigger->getName() == "win") {
+                        spdlog::info("恭喜！你赢了！");
+                        // 通关后回到第一关（或者可以处理为显示通关画面）
+                        auto next_scene = std::make_unique<GameScene>("GameScene", context_, scene_manager_, "assets/maps/level1.tmj");
+                        scene_manager_.requestReplaceScene(std::move(next_scene));
+                        return true;
+                    }
+
+                    std::string next_level_path = "assets/maps/" + trigger->getName() + ".tmj";
+                    spdlog::info("玩家触碰关卡切换触发器，准备加载: {}", next_level_path);
+
+                    auto next_scene = std::make_unique<GameScene>("GameScene", context_, scene_manager_, next_level_path);
+                    scene_manager_.requestReplaceScene(std::move(next_scene));
+                    return true;
+                }
+                return false;
+            };
+
+            if (checkLevelSwitch(obj1, obj2) || checkLevelSwitch(obj2, obj1)) {
+                return; // 场景即将替换，跳出循环
+            }
 
             // 处理玩家与敌人的碰撞
             if (obj1->getName() == "player" && obj2->getTag() == "enemy") {

@@ -15,8 +15,9 @@ namespace game::scene {
      */
     class GameScene final : public engine::scene::Scene {
 		engine::object::GameObject* player_{ nullptr }; ///< 测试用的游戏对象指针
+        std::string level_path_;                         ///< 当前关卡的文件路径
     public:
-        GameScene(std::string name, engine::core::Context& context, engine::scene::SceneManager& scene_manager);
+        GameScene(std::string name, engine::core::Context& context, engine::scene::SceneManager& scene_manager, std::string level_path = "assets/maps/level1.tmj");
 
         // 覆盖场景基类的核心方法
         void init() override;

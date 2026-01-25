@@ -492,6 +492,7 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
 ### 1. 场景管理 (Scene Management)
 - **栈式管理**: 支持 `Push` (叠加场景，如暂停菜单) 和 `Replace` (切换场景，如转场)。
 - **延迟操作**: 通过 `PendingAction` 确保在帧末尾进行场景切换，避免在更新循环中由于内存释放导致的悬空指针。
+- **动态关卡加载**: `GameScene` 支持接收关卡路径参数，允许通过 `Replace` 操作实现不同关卡间的无缝切换。
 
 ### 2. 安全的对象添加/移除 (Safe Object Management)
 - **safeAddGameObject**: 将对象加入 `pending_game_objects_`。
@@ -550,7 +551,9 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
     - `Image Layer` -> `ParallaxComponent` (支持部分滚动因子，用于远景)。
     - `Tile Layer` -> `TileLayerComponent` (支持剔除渲染与对齐修正)。
         - **物理类型支持**: 支持 `SOLID` (碰撞)、`HAZARD` (伤害区域)、`LADDER` (可攀爬区域) 以及多种角度的 `SLOPE` (斜坡)。
-    - `Object Layer` -> `GameObject` (将Tiled对象实例化为带`Transform`, `Sprite`组件的实体)。
+    - `Object Layer`:
+        - **视觉对象**: 将带 GID 的对象实例化为带 `Transform`, `Sprite` 组件的实体。
+        - **形状对象 (GID=0)**: 支持加载矩形等形状，自动附加 `ColliderComponent` (触发器) 与静态 `PhysicsComponent`，用于实现关卡出口、检查点等逻辑触发区域。
 - **路径解析**: 自动处理相对路径，确保纹理资源正确加载。
 
 ### 8. 视差滚动 (Parallax Scrolling)
@@ -709,6 +712,12 @@ out/                    # CMake 默认构建输出（由 IDE/生成器产生）
   - 优化后的 `PlayerVSEnemyCollision` 不再仅依赖重叠区域的长宽比。
   - **判定条件**: 1. 玩家垂直速度向下 (`velocity.y > 0`)； 2. 玩家足部 AABB 边界在敌人中心线上方。
   - **效果**: 判定成功则调用敌人 `HealthComponent` 扣血，并赋予玩家瞬时的向上冲量（反弹跳）。判定失败则玩家受损。
+
+### 19. 关卡切换逻辑 (Level Switching)
+
+- **触发器设计**: 在 Tiled 中放置 `tag` 为 `next_level` 的对象。
+- **自动跳转**: `GameScene` 碰撞处理器检测到玩家进入触发区时，提取对象的 `name` 作为目标地图文件名。
+- **流程**: 检测碰撞 -> 拼接路径 -> `requestReplaceScene` -> 帧末自动销毁旧场景并加载新关卡。
 
 ## 开发规范 (Development Guidelines)
 

@@ -181,8 +181,29 @@ namespace engine::scene {
                 auto gid = object.value("gid", 0);
 
                 if (gid == 0) {
-                    // 如果gid为0，代表是自定义形状，如碰撞盒，我们以后再处理
-                    // TODO: Handle shapes
+                    // 处理形状对象 (如矩形 trigger)
+                    auto position = glm::vec2(object.value("x", 0.0f), object.value("y", 0.0f));
+                    auto size = glm::vec2(object.value("width", 0.0f), object.value("height", 0.0f));
+                    auto rotation = object.value("rotation", 0.0f);
+                    std::string name = object.value("name", "Unnamed");
+
+                    auto game_object = std::make_unique<engine::object::GameObject>(name);
+                    game_object->addComponent<engine::component::TransformComponent>(position, rotation);
+
+                    // 如果有尺寸，通常它是某种碰撞区或触发器
+                    if (size.x > 0 && size.y > 0) {
+                        auto collider = std::make_unique<engine::physics::AABBCollider>(size);
+                        game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
+                        // 添加静态物理组件，以便参与碰撞检测
+                        game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
+                    }
+
+                    // 处理属性
+                    if (auto tag = getTileProperty<std::string>(object, "tag"); tag) {
+                        game_object->setTag(tag.value());
+                    }
+
+                    scene.addGameObject(std::move(game_object));
                 }
                 else {
                     // 如果gid存在，则代表这是一个带图像的对象

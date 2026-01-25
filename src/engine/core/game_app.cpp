@@ -63,7 +63,7 @@ bool engine::core::GameApp::init()
 		initSceneManager()) 
 	{
 		spdlog::info("游戏应用程序初始化成功。");
-		auto scene = std::make_unique<game::scene::GameScene>("GameScene", *context_, *scene_manager_);
+		auto scene = std::make_unique<game::scene::GameScene>("GameScene", *context_, *scene_manager_, "assets/maps/level1.tmj");
 		scene_manager_->requestPushScene(std::move(scene));
 		return true;
 	}
