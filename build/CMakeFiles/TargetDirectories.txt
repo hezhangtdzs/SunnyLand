@@ -1,3 +1,0 @@
-D:/repos/Game/SunnyLand/build/CMakeFiles/SunnyLand-Windows.dir
-D:/repos/Game/SunnyLand/build/CMakeFiles/edit_cache.dir
-D:/repos/Game/SunnyLand/build/CMakeFiles/rebuild_cache.dir
