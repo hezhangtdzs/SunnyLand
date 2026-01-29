@@ -87,41 +87,6 @@ namespace engine::component {
 		bool isEnabled() const { return enable_; }                                 ///< @brief 获取组件是否启用
 		bool isUseGravity() const { return use_gravity_; }                          ///< @brief 获取组件是否受重力影响
 
-		/**
-		 * @brief 向物体添加力。
-		 * @param force 力向量
-		 */
-		void addForce(const glm::vec2& force) { if (enable_) force_ += force; }
-
-		/**
-		 * @brief 清除作用在物体上的所有力。
-		 */
-		void clearForce() { force_ = { 0.0f, 0.0f }; }
-
-		/**
-		 * @brief 获取当前作用在物体上的总力。
-		 * @return 力向量
-		 */
-		const glm::vec2& getForce() const { return force_; }
-
-		/**
-		 * @brief 获取物体的质量。
-		 * @return 质量
-		 */
-		float getMass() const { return mass_; }
-
-		/**
-		 * @brief 获取组件是否启用。
-		 * @return 启用返回true，否则返回false
-		 */
-		bool isEnabled() const { return enable_; }
-
-		/**
-		 * @brief 获取组件是否受重力影响。
-		 * @return 受重力影响返回true，否则返回false
-		 */
-		bool isUseGravity() const { return use_gravity_; }
-
 		// 设置器/获取器
 		
 		/**

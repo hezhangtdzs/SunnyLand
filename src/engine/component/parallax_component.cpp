@@ -22,7 +22,6 @@ ParallaxComponent::ParallaxComponent(std::string& texture_id, const glm::vec2& p
 {
 	spdlog::trace("ParallaxComponent 构造完成，纹理ID：{}", texture_id);
 }
-engine::component::ParallaxComponent::~ParallaxComponent() = default;
 
 /**
  * @brief 析构函数

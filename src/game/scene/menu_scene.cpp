@@ -79,7 +79,7 @@ namespace game::scene
     // 放在中间靠上的位置 
     auto size = pause_label->getSize();
     spdlog::debug("Pause 标签大小: {} x {}", size.x, size.y);
-    auto label_y = window_size.y * 0.2;
+    auto label_y = window_size.y * 0.2f;
     auto label_x = (window_size.x - size.x) / 2.0f;
     spdlog::debug("Pause 标签位置: ({}, {})", label_x, label_y);
     pause_label->setPosition(glm::vec2(label_x, label_y));
