@@ -1,0 +1,189 @@
+# 开发规范 (Development Guidelines)
+
+## 1. 创建新场景
+- 继承 `engine::scene::Scene`。
+- 在 `init()` 中使用 `createGameObject` 或 `std::make_unique` 构建初始化实体。
+- 通过 `scene_manager_.requestReplaceScene()` 实现场景跳转。
+- 对于结束场景 (EndScene)，需要：
+  - 在构造函数中处理 `SessionData` 的获取和初始化
+  - 在 `createUI()` 方法中构建完整的结束界面
+  - 实现游戏胜利/失败状态的显示逻辑
+  - 提供重新开始和返回主菜单的功能
+
+## 2. 创建新组件
+- 继承 `engine::component::Component`。
+- 逻辑代码写在 `update()` 中，渲染代码写在 `render()` 中。
+- 获取同对象的其他组件请使用 `owner_->getComponent<T>()`。
+
+## 3. 使用 PhysicsComponent（示例）
+
+- 给对象添加物理：`addComponent<PhysicsComponent>(&context_.getPhysicsEngine())`
+- 关闭重力：`setUseGravity(false)`
+- 施加一次性力：`addForce(...)`（会在该帧计算完后清空）
+- 直接设置速度：`setVelocity(...)`（用于跳跃/冲量类效果）
+
+## 4. 使用音频系统（示例）
+
+### 方式 A：组件内按 action/id 播放
+
+- 给对象添加音频组件：`addComponent<AudioComponent>()`
+- 注册音效映射：`registerSound("jump", "assets/sounds/jump.wav")`
+- 设置节流（可选）：`setMinIntervalMs(80)`
+- 触发播放：`playSound("jump", context)`
+
+### 方式 B：直接播放路径
+
+- 直接播放某个文件：`context.getAudioPlayer().playSound("assets/sounds/coin.wav")`
+- 播放 BGM：`context.getAudioPlayer().playMusic("assets/music/level1.ogg")`
+
+## 5. 使用 SessionData（示例）
+
+### 5.1 初始化和获取 SessionData
+
+```cpp
+// 初始化 SessionData（通常在 GameApp 中）
+auto session_data = game::data::SessionData::getInstance();
+// 加载存档数据
+session_data->load();
+// 设置初始关卡路径
+session_data->setMapPath("assets/maps/level1.tmj");
+```
+
+### 5.2 获取和修改游戏状态
+
+```cpp
+// 获取 SessionData 实例
+auto session_data = game::data::SessionData::getInstance();
+
+// 获取游戏状态
+int current_health = session_data->getCurrentHealth();
+int current_score = session_data->getCurrentScore();
+bool is_win = session_data->getIsWin();
+
+// 修改游戏状态
+session_data->setCurrentHealth(3);
+session_data->setCurrentScore(current_score + 100);
+session_data->setIsWin(true); // 设置游戏胜利状态
+
+// 增加得分（推荐使用）
+session_data->addScore(50); // 增加 50 分
+```
+
+### 5.3 保存和加载游戏数据
+
+```cpp
+// 保存游戏数据
+auto session_data = game::data::SessionData::getInstance();
+session_data->save();
+
+// 加载游戏数据
+session_data->load();
+```
+
+## 6. 关卡切换时的数据传递（示例）
+
+```cpp
+// 在 GameScene 中处理关卡切换
+if (player->getName() == "player" && (trigger->getTag() == "next_level" || trigger->getName() == "win")) {
+    // 获取 SessionData 实例
+    auto session_data = game::data::SessionData::getInstance();
+    
+    // 保存当前游戏状态
+    session_data->save();
+    
+    // 设置下一关路径
+    std::string next_level_path = "assets/maps/" + trigger->getName() + ".tmj";
+    session_data->setMapPath(next_level_path);
+    
+    // 创建新场景并传入会话数据
+    auto next_scene = std::make_unique<GameScene>(
+        "GameScene", 
+        context_, 
+        scene_manager_, 
+        session_data,
+        next_level_path);
+    scene_manager_.requestReplaceScene(std::move(next_scene));
+}
+```
+
+## 7. 性能优化
+- **避免在每帧 `update` 中分配内存**: 尽量复用对象。
+- **批量渲染**: 相同纹理的对象尽量连续渲染（后续计划）。
+- **资源预加载**: 在 `Scene::init()` 中一次性加载场景所需资源。
+- **UI 渲染优化**: 对于静态 UI 元素，考虑使用批处理渲染减少绘制调用。
+- **状态机优化**: 状态切换逻辑应该简单明了，避免在状态处理中执行复杂计算。
+- **精灵管理**: 对于频繁切换的精灵，考虑使用精灵图集减少纹理切换开销。
+
+## 8. UI 系统开发规范
+
+### 8.1 创建交互式 UI 元素
+- 继承 `UIInteractive` 类实现自定义交互式元素。
+- 为不同状态创建对应的精灵和音效。
+- 使用状态模式管理不同的交互状态。
+
+### 8.2 创建按钮
+- 使用 `UIButton` 类创建标准按钮。
+- 对于精灵按钮，提供正常、悬停、按下三种状态的精灵路径。
+- 使用 Lambda 表达式或函数对象设置点击回调。
+
+### 8.3 UI 布局最佳实践
+- **使用相对坐标**: 子元素位置相对于父元素，便于整体移动和缩放。
+- **分层设计**: 使用 `UIPanel` 作为容器组织相关 UI 元素。
+- **响应式布局**: 考虑不同屏幕尺寸的适配（后续计划）。
+- **输入处理**: 确保交互式元素正确处理输入事件，避免事件穿透。
+
+### 8.4 资源管理
+- **精灵资源**: 按钮精灵应该尺寸一致，便于布局管理。
+- **音效资源**: 为不同状态选择合适的音效，增强用户体验。
+
+## 9. 游戏失败检测和场景切换
+
+### 9.1 游戏失败检测
+- **生命值检测**: 在 `GameScene::update()` 中检查玩家生命值是否耗尽
+- **掉落检测**: 检查玩家位置是否超出屏幕下方，建议设置 100 像素的缓冲区
+- **其他失败条件**: 根据游戏设计添加其他失败条件，如时间耗尽等
+
+### 9.2 场景切换最佳实践
+- **状态保存**: 在切换场景前保存游戏状态，确保数据持久化
+- **状态设置**: 设置游戏胜利/失败状态，用于结束场景的显示
+- **错误处理**: 处理 `SessionData` 为空的情况，确保场景切换的安全性
+- **调试日志**: 添加详细的调试日志，记录场景切换的原因和过程
+
+### 9.3 实现示例
+
+```cpp
+// 游戏失败检测和场景切换示例
+if (session_data->getCurrentHealth() <= 0) {
+    spdlog::info("玩家生命值耗尽，游戏失败！");
+    session_data->setIsWin(false);
+    session_data->save();
+    
+    auto end_scene = std::make_unique<EndScene>(
+        context_, 
+        scene_manager_, 
+        session_data);
+    scene_manager_.requestReplaceScene(std::move(end_scene));
+    return;
+}
+
+// 玩家掉落检测示例
+if (player) {
+    auto* transform = player->getComponent<engine::component::TransformComponent>();
+    if (transform) {
+        auto position = transform->getPosition();
+        auto viewport_size = context_.getCamera().getViewportSize();
+        if (position.y > viewport_size.y + 100.0f) {
+            spdlog::info("玩家掉出屏幕，游戏失败！");
+            session_data->setIsWin(false);
+            session_data->save();
+            
+            auto end_scene = std::make_unique<EndScene>(
+                context_, 
+                scene_manager_, 
+                session_data);
+            scene_manager_.requestReplaceScene(std::move(end_scene));
+            return;
+        }
+    }
+}
+```

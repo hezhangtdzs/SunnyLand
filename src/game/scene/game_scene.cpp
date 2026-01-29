@@ -1,0 +1,628 @@
+#include "game_scene.h"
+#include "menu_scene.h"
+#include "end_scene.h"
+#include "../../engine/core/context.h"
+#include "../../engine/object/game_object.h"
+#include "../../engine/core/game_state.h"
+#include "../../engine/component/transform_component.h"
+#include "../../engine/component/sprite_component.h"
+#include "../../engine/component/physics_component.h"
+#include "../../engine/component/ai_component.h"
+#include "../../engine/component/behaviors/patrol_behavior.h"
+#include "../../engine/component/behaviors/up_down_behavior.h"
+#include "../../engine/component/behaviors/jump_behavior.h"
+#include "../../engine/component/collider_component.h"
+#include "../../engine/component/tilelayer_component.h"
+#include "../../engine/component/health_component.h"
+#include "../../game/component/player_component.h"
+#include "../../engine/component/animation_component.h"
+#include "../../engine/component/audio_component.h"
+#include "../../engine/resource/resource_manager.h"
+#include "../data/session_data.h"
+
+#include "../../engine/physics/collider.h"
+#include "../../engine/scene/level_loader.h"
+#include "../../engine/input/input_manager.h"
+#include "../../engine/render/camera.h"
+#include "../../engine/render/animation.h"
+#include "../../engine/render/text_renderer.h"
+#include "../../engine/physics/physics_engine.h"
+#include "../../engine/scene/scene_manager.h"
+#include "../../engine/ui/ui_manager.h"
+#include "../../engine/ui/ui_panel.h"
+#include "../../engine/ui/ui_text.h"
+#include "../../engine/ui/ui_image.h"
+#include "../../engine/ui/ui_button.h"
+#include <spdlog/spdlog.h>
+#include <SDL3/SDL_rect.h>
+
+namespace game::scene {
+
+    // 构造函数：调用基类构造函数
+    GameScene::GameScene(std::string name, engine::core::Context& context, engine::scene::SceneManager& scene_manager, std::string level_path)
+        : Scene(name, context, scene_manager), level_path_(std::move(level_path)) {
+        session_data_ = scene_manager_.getSessionData();
+        spdlog::trace("GameScene 构造完成。");
+    }
+
+    // 构造函数：带 SessionData 的版本
+    GameScene::GameScene(std::string name, engine::core::Context& context, engine::scene::SceneManager& scene_manager, std::shared_ptr<game::data::SessionData> session_data, std::string level_path)
+        : Scene(name, context, scene_manager), 
+          level_path_(std::move(level_path)),
+          session_data_(std::move(session_data)) {
+        if (!session_data_) {
+            session_data_ = scene_manager_.getSessionData();
+        }
+        spdlog::trace("GameScene 构造完成 (带 SessionData)。");
+    }
+
+    void GameScene::init() {
+        if (initLevel() && initPlayer() && initEnemyAndItem()) {
+            context_.getGameState().setState(engine::core::GameStateType::Playing);
+            context_.getResourceManager().playMusic("assets/audio/platformer_level03_loop.ogg");
+            spdlog::info("GameScene 初始化完成。");
+        }
+
+        Scene::init();
+        initHUD(); // 初始化HUD
+    }
+
+    void GameScene::update(float delta_time) {
+        handleObjectCollisions();
+        handleTileTriggers();
+        Scene::update(delta_time);
+        updateHUD(); // 更新HUD显示
+
+        // 检查游戏失败条件
+        if (session_data_) {
+            // 检查生命值
+            if (session_data_->getCurrentHealth() <= 0) {
+                spdlog::info("玩家生命值耗尽，游戏失败！");
+                session_data_->setIsWin(false);
+                session_data_->save();
+                
+                // 创建结束场景
+                auto end_scene = std::make_unique<EndScene>(
+                    context_, 
+                    scene_manager_, 
+                    session_data_);
+                scene_manager_.requestReplaceScene(std::move(end_scene));
+                return;
+            }
+            
+            // 检查玩家是否掉出屏幕
+            if (player_) {
+                auto* transform = player_->getComponent<engine::component::TransformComponent>();
+                if (transform) {
+                    auto position = transform->getPosition();
+                    // 获取相机视口大小
+                    auto viewport_size = context_.getCamera().getViewportSize();
+                    // 检查玩家是否掉出屏幕下方 100 像素
+                    if (position.y > viewport_size.y + 100.0f) {
+                        spdlog::info("玩家掉出屏幕，游戏失败！");
+                        session_data_->setIsWin(false);
+                        session_data_->save();
+                        
+                        // 创建结束场景
+                        auto end_scene = std::make_unique<EndScene>(
+                            context_, 
+                            scene_manager_, 
+                            session_data_);
+                        scene_manager_.requestReplaceScene(std::move(end_scene));
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    void GameScene::render() {
+        Scene::render();
+        
+    }
+
+    bool GameScene::handleInput() {
+        Scene::handleInput();
+
+        if (context_.getInputManager().isActionPressed("pause")) {
+            spdlog::debug("在GameScene中检测到暂停动作，正在推送MenuScene。");
+            scene_manager_.requestPushScene(std::make_unique<MenuScene>(context_, scene_manager_, session_data_));
+        }
+        return true;
+    }
+
+    void GameScene::clean() {
+    Scene::clean();
+}
+
+void GameScene::initHUD() {
+    auto* ui_manager = getUIManager();
+    if (!ui_manager) {
+        return;
+    }
+
+    glm::vec2 viewport_size = context_.getCamera().getViewportSize();
+    const float padding = 20.0f;
+    
+    // 创建HUD面板
+    auto hud_panel = std::make_unique<engine::ui::UIPanel>(context_);
+    hud_panel->setPosition({ 0.0f, 0.0f });
+    hud_panel->setSize(viewport_size); 
+    hud_panel->setBackgroundColor({ 0.0f, 0.0f, 0.0f, 0.0f }); 
+    hud_panel->setBorderColor({ 0.0f, 0.0f, 0.0f, 0.0f }); 
+    
+    hud_panel_ = hud_panel.get();
+    
+    // 初始化生命值图标 (Sunny Land 风格：左上角)
+    if (session_data_) {
+        int max_health = session_data_->getMaxHealth();
+        for (int i = 0; i < max_health; ++i) {
+            glm::vec2 icon_pos = { padding + i * 36.0f, padding }; // 稍微增加边距
+            
+            // 背景心 (空的容器)
+            auto health_bg = std::make_unique<engine::ui::UIImage>(context_, "assets/textures/UI/Heart-bg.png", 
+                                                                  icon_pos, 
+                                                                  glm::vec2(32.0f, 32.0f));
+            hud_panel->addChild(std::move(health_bg));
+            
+            // 实心红心
+            auto health_icon = std::make_unique<engine::ui::UIImage>(context_, "assets/textures/UI/Heart.png", 
+                                                                  icon_pos, 
+                                                                  glm::vec2(32.0f, 32.0f));
+            health_icons_.push_back(health_icon.get());
+            hud_panel->addChild(std::move(health_icon));
+        }
+    }
+    
+    // 初始化得分显示 (右对齐)
+    auto score_text = std::make_unique<engine::ui::UIText>(context_, "Score: 0", "assets/fonts/VonwaonBitmap-16px.ttf", 24);
+    score_text->setPosition({ viewport_size.x - padding, padding }); 
+    score_text->setAlignment(engine::ui::TextAlignment::RIGHT); // 关键：设置为右对齐
+    score_text->setColor({ 1.0f, 1.0f, 1.0f, 1.0f }); 
+    
+    score_text_ = score_text.get();
+    hud_panel->addChild(std::move(score_text));
+    
+    ui_manager->addElement(std::move(hud_panel));
+    updateHUD();
+    
+}
+
+
+void GameScene::updateHUD() {
+    // 更新得分显示
+    if (score_text_ && session_data_) {
+        score_text_->setText("Score: " + std::to_string(session_data_->getCurrentScore()));
+    }
+    
+    // 更新生命值图标
+    if (session_data_) {
+        int current_health = session_data_->getCurrentHealth();
+        
+        for (size_t i = 0; i < health_icons_.size(); ++i) {
+            if (health_icons_[i]) {
+                // 根据当前生命值设置图标的可见性
+                health_icons_[i]->setVisible(i < current_health);
+            }
+        }
+    }
+}
+
+bool GameScene::initLevel() {
+    // 加载关卡（level_loader通常加载完成后即可销毁，因此不存为成员变量）
+    engine::scene::LevelLoader level_loader;
+    if (!level_loader.loadLevel(level_path_, *this)) {
+        spdlog::error("关卡加载失败: {}", level_path_);
+        return false;
+    }
+
+    // 注册"main"层到物理引擎
+    auto* main_layer = findGameObjectByName("main");
+    if (!main_layer) {
+        spdlog::error("未找到\"main\"层");
+        return false;
+    }
+    auto* tile_layer = main_layer->getComponent<engine::component::TileLayerComponent>();
+    if (!tile_layer) {
+        spdlog::error("\"main\"层没有 TileLayerComponent 组件");
+        return false;
+    }
+    context_.getPhysicsEngine().registerCollisionLayer(tile_layer);
+    spdlog::info("注册\"main\"层到物理引擎");
+
+    // 设置相机边界
+    auto world_size = main_layer->getComponent<engine::component::TileLayerComponent>()->getWorldSize();
+    context_.getCamera().setLimitBounds(engine::utils::Rect(glm::vec2(0.0f), world_size));
+
+    // 设置世界边界
+    context_.getPhysicsEngine().setWorldBounds(engine::utils::Rect(glm::vec2(0.0f), world_size));
+
+    spdlog::trace("关卡初始化完成。");
+    return true;
+}
+
+bool GameScene::initPlayer() {
+    player_ = findGameObjectByName("player");
+    if (!player_) {
+        spdlog::error("未找到玩家对象");
+        return false;
+    }
+
+    // 添加PlayerComponent到玩家对象
+    auto* player_component = player_->addComponent<game::component::PlayerComponent>();
+    if (!player_component) {
+        spdlog::error("无法添加 PlayerComponent 到玩家对象");
+        return false;
+    }
+
+    // 如果会话数据存在，初始化玩家生命值
+    if (session_data_) {
+        auto* health_component = player_->getComponent<engine::component::HealthComponent>();
+        if (health_component) {
+            // 设置最大生命值和当前生命值
+            health_component->setMaxHealth(session_data_->getMaxHealth());
+            health_component->setCurrentHealth(session_data_->getCurrentHealth());
+            spdlog::info("使用会话数据初始化玩家生命值: {}/{}", 
+                session_data_->getCurrentHealth(), session_data_->getMaxHealth());
+        }
+    }
+
+    // 相机跟随玩家
+    auto* player_transform = player_->getComponent<engine::component::TransformComponent>();
+    if (!player_transform) {
+        spdlog::error("玩家对象没有 TransformComponent 组件, 无法设置相机目标");
+        return false;
+    }
+    context_.getCamera().setTarget(player_transform);
+
+	if (auto* audio = player_->getComponent<engine::component::AudioComponent>()) {
+		audio->setMinIntervalMs(80);
+		spdlog::trace("玩家音频组件已由关卡数据加载。");
+	}
+
+    spdlog::trace("Player初始化完成。");
+
+    return true;
+}
+bool GameScene::initEnemyAndItem() {
+    bool success = true;
+    for (auto& game_object : game_objects_){
+        if (game_object->getName() == "eagle"){
+            if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
+                std::make_unique<engine::component::UpDownBehavior>(40.0f, 80.0f)); ai_component){
+                spdlog::info("为Eagle添加了UpDownBehavior");
+                /*if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
+                    ac->playAnimation("fly");
+                }*/
+            }
+        }
+        if (game_object->getName() == "frog"){
+            auto* transform = game_object->getComponent<engine::component::TransformComponent>();
+            float start_x = transform->getPosition().x;
+            float x_max = start_x - 10.0f;
+            float x_min = x_max - 90.0f;
+
+            if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
+                std::make_unique<engine::component::JumpBehavior>(x_min, x_max, 60.0f, 250.0f, 2.0f)); ai_component){
+                spdlog::info("为Frog添加了JumpBehavior, 范围: [{}, {}]", x_min, x_max);
+                
+               /* if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
+                    ac->playAnimation("idle");
+                }*/
+            }
+        }
+        if (game_object->getName() == "opossum"){
+            if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
+                std::make_unique<engine::component::PatrolBehavior>(50.0f, 200.0f)); ai_component){
+                spdlog::info("为Opossum添加了PatrolBehavior");
+              /*  if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
+                    ac->playAnimation("walk");
+                }*/
+            }
+        }
+        if (game_object->getTag() == "item") {
+            if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
+                ac->playAnimation("idle");
+            }
+            else {
+                spdlog::error("Item对象缺少 AnimationComponent，无法播放动画。");
+                success = false;
+            }
+        }
+    }
+    return success;
+}
+    void GameScene::handleObjectCollisions()
+    {
+        // 从物理引擎中获取碰撞对
+        auto collision_pairs = context_.getPhysicsEngine().getCollisionPairs();
+        for (const auto& pair : collision_pairs) {
+            auto* obj1 = pair.first;
+            auto* obj2 = pair.second;
+
+            // 处理关卡切换触发器
+            auto checkLevelSwitch = [&](engine::object::GameObject* p, engine::object::GameObject* trigger) {
+                if (p->getName() == "player" && (trigger->getTag() == "next_level" || trigger->getName() == "win")) {
+                    if (trigger->getName() == "win") {
+                        spdlog::info("恭喜！你赢了！");
+                        // 保存当前游戏状态
+                        if (session_data_) {
+                            session_data_->setIsWin(true);
+                            session_data_->save();
+                        }
+                        
+                        // 创建结束场景
+                        auto end_scene = std::make_unique<EndScene>(
+                            context_, 
+                            scene_manager_, 
+                            session_data_);
+                        scene_manager_.requestReplaceScene(std::move(end_scene));
+                        return true;
+                    }
+
+                    std::string next_level_path = "assets/maps/" + trigger->getName() + ".tmj";
+                    spdlog::info("玩家触碰关卡切换触发器，准备加载: {}", next_level_path);
+                    
+                    // 保存当前游戏状态
+                    if (session_data_) {
+                        session_data_->setMapPath(next_level_path);
+                        // 检查是否需要重置分数
+                        session_data_->checkAndResetScore();
+                        session_data_->save();
+                    }
+                    
+                    // 创建新场景并传入会话数据
+                    auto next_scene = std::make_unique<GameScene>(
+                        "GameScene", 
+                        context_, 
+                        scene_manager_, 
+                        session_data_,
+                        next_level_path);
+                    scene_manager_.requestReplaceScene(std::move(next_scene));
+                    return true;
+                }
+                return false;
+            };
+
+            if (checkLevelSwitch(obj1, obj2) || checkLevelSwitch(obj2, obj1)) {
+                return; // 场景即将替换，跳出循环
+            }
+
+            // 处理玩家与敌人的碰撞
+            if (obj1->getName() == "player" && obj2->getTag() == "enemy") {
+                PlayerVSEnemyCollision(obj1, obj2);
+            }
+            else if (obj2->getName() == "player" && obj1->getTag() == "enemy") {
+                PlayerVSEnemyCollision(obj2, obj1);
+            }
+            // 处理玩家与道具的碰撞
+            else if (obj1->getName() == "player" && obj2->getTag() == "item") {
+                PlayerVSItemCollision(obj1, obj2);
+            }
+            else if (obj2->getName() == "player" && obj1->getTag() == "item") {
+                PlayerVSItemCollision(obj2, obj1);
+            }
+            // 处理玩家与危险物品（如尖刺对象）的碰撞
+            else if (obj1->getName() == "player" && obj2->getTag() == "hazard") {
+                processHazardDamage(obj1);
+            }
+            else if (obj2->getName() == "player" && obj1->getTag() == "hazard") {
+                processHazardDamage(obj2);
+            }
+        }
+    }
+
+    void GameScene::PlayerVSEnemyCollision(engine::object::GameObject* player, engine::object::GameObject* enemy)
+    {
+        auto* player_collider = player->getComponent<engine::component::ColliderComponent>();
+        auto* enemy_collider = enemy->getComponent<engine::component::ColliderComponent>();
+        auto* player_physics = player->getComponent<engine::component::PhysicsComponent>();
+
+        if (!player_collider || !enemy_collider || !player_physics) return;
+
+        auto player_aabb = player_collider->getWorldAABB();
+        auto enemy_aabb = enemy_collider->getWorldAABB();
+
+        // 优化判定：使用底部高度和垂直速度
+        float player_bottom = player_aabb.position.y + player_aabb.size.y;
+        // float enemy_top = enemy_aabb.position.y;  // 该变量未使用，已移除
+        float enemy_middle = enemy_aabb.position.y + enemy_aabb.size.y * 0.5f;
+
+        // 踩踏条件：
+        // 1. 玩家正在向下移动 (velocity.y > 0)
+        // 2. 玩家底部在敌人中心线上方 (确保是从上方接触)
+        bool is_falling = player_physics->velocity_.y > 0.0f;
+        bool is_above = player_bottom < enemy_middle;
+
+        // 踩踏判断成功，敌人受伤
+        if (is_falling && is_above) {
+            spdlog::info("玩家 {} 踩踏了敌人 {}", player->getName(), enemy->getName());
+			if (auto* player_audio = player->getComponent<engine::component::AudioComponent>()) {
+				player_audio->playSound("stomp", context_);
+			}
+            auto enemy_health = enemy->getComponent<engine::component::HealthComponent>();
+            if (!enemy_health) {
+                // 如果敌人没血条也能被踩死（比如直接移除）
+                enemy->setNeedRemove(true);
+                
+                // 踩踏敌人得分
+                const int enemy_score = 50;
+                if (session_data_) {
+                    session_data_->addScore(enemy_score);
+                    spdlog::info("玩家踩踏敌人获得 {} 分，总得分: {}", enemy_score, session_data_->getCurrentScore());
+                }
+                
+                return;
+            }
+
+            enemy_health->takeDamage(1);  // 造成1点伤害
+            if (!enemy_health->isAlive()) {
+                enemy->setNeedRemove(true);  // 标记敌人为待删除状态
+                auto enemy_center = enemy_aabb.position + enemy_aabb.size / 2.0f;
+                createEffect(enemy_center, enemy->getTag());  // 创建（死亡）特效
+                
+                // 踩踏敌人得分
+                const int enemy_score = 50;
+                if (session_data_) {
+                    session_data_->addScore(enemy_score);
+                    spdlog::info("玩家踩踏敌人获得 {} 分，总得分: {}", enemy_score, session_data_->getCurrentScore());
+                }
+            }
+            // 玩家反弹跳起效果
+            player_physics->velocity_.y = -300.0f;
+        }
+        // 踩踏判断失败，玩家受伤
+        else {
+            processHazardDamage(player);
+        }
+    }
+
+    void GameScene::PlayerVSItemCollision(engine::object::GameObject* player, engine::object::GameObject* item)
+    {
+		if (auto* audio = item->getComponent<engine::component::AudioComponent>()) {
+			audio->playSound("pickup", context_);
+		}
+        if (item->getName() == "fruit" || item->getTag() == "fruit") {
+            auto* health = player->getComponent<engine::component::HealthComponent>();
+            if (health) {
+                health->heal(1);  // 加血
+                // 更新会话数据中的生命值
+                if (session_data_) {
+                    session_data_->setCurrentHealth(health->getCurrentHealth());
+                }
+            }
+        }
+        else if (item->getName() == "gem" || item->getTag() == "gem") {
+            // 加分并更新会话数据
+            const int gem_score = 100;
+            if (session_data_) {
+                session_data_->addScore(gem_score);
+                spdlog::info("玩家获得 {} 分，总得分: {}", gem_score, session_data_->getCurrentScore());
+            }
+        }
+        item->setNeedRemove(true);  // 标记道具为待删除状态
+        
+        // 优先使用碰撞盒中心，如果没有则使用 Transform 位置
+        glm::vec2 effect_pos;
+        if (auto* cc = item->getComponent<engine::component::ColliderComponent>()) {
+            auto aabb = cc->getWorldAABB();
+            effect_pos = aabb.position + aabb.size / 2.0f;
+        } else if (auto* tc = item->getComponent<engine::component::TransformComponent>()) {
+            effect_pos = tc->getPosition(); // 注意：这里可能需要加上精灵尺寸的一半来居中
+        } else {
+            return;
+        }
+        
+        createEffect(effect_pos, "item");
+    }
+
+    void GameScene::handleTileTriggers()
+    {
+        const auto& tile_trigger_events = context_.getPhysicsEngine().getTileTriggerEvents();
+        for (const auto& event : tile_trigger_events) {
+            auto* obj = event.first;      // 触发事件的对象
+            auto tile_type = event.second;  // 瓦片类型
+            
+            if (tile_type == engine::component::TileType::HAZARD) {
+                // 如果是玩家碰到了危险瓦片，就受伤
+                if (obj->getName() == "player") {
+                    processHazardDamage(obj);
+                }
+            }
+            else if (tile_type == engine::component::TileType::LEVEL_EXIT) {
+                // 如果是玩家碰到了关卡出口，进入下一关
+                if (obj->getName() == "player") {
+                    spdlog::info("玩家到达关卡出口，准备进入下一关");
+                    
+                    // 确定下一关的路径
+                    std::string next_level_path;
+                    if (level_path_ == "assets/maps/level1.tmj") {
+                        next_level_path = "assets/maps/level2.tmj";
+                    } else if (level_path_ == "assets/maps/level2.tmj") {
+                        next_level_path = "assets/maps/level1.tmj"; // 循环回第一关
+                    } else {
+                        next_level_path = "assets/maps/level1.tmj"; // 默认回第一关
+                    }
+                    
+                    // 保存当前状态（包含更新后的路径）
+                    if (session_data_) {
+                        session_data_->setMapPath(next_level_path);
+                        // 检查是否需要重置分数
+                        session_data_->checkAndResetScore();
+                        session_data_->save();
+                    }
+                    
+                    // 请求切换到下一关
+                    auto new_scene = std::make_unique<GameScene>(
+                        "GameScene", 
+                        context_, 
+                        scene_manager_, 
+                        session_data_,
+                        next_level_path);
+                    scene_manager_.requestReplaceScene(std::move(new_scene));
+                    
+                    break; // 只处理第一个出口触发事件
+                }
+            }
+        }
+    }
+
+    void GameScene::processHazardDamage(engine::object::GameObject* player)
+    {
+        auto* player_comp = player->getComponent<game::component::PlayerComponent>();
+        if (player_comp) {
+            player_comp->takeDamage(1, context_);
+            
+            // 更新会话数据中的生命值
+            if (session_data_) {
+                auto* health = player->getComponent<engine::component::HealthComponent>();
+                if (health) {
+                    session_data_->setCurrentHealth(health->getCurrentHealth());
+                    spdlog::info("玩家受伤，生命值更新: {}/{}", 
+                        session_data_->getCurrentHealth(), session_data_->getMaxHealth());
+                }
+            }
+        }
+    }
+
+
+    void GameScene::createEffect(const glm::vec2& center_pos, const std::string& tag)
+    {
+        // 根据标签创建相应的动画
+        auto animation = std::make_unique<engine::render::Animation>("effect", false); // false表示不循环
+        glm::vec2 offset(0.0f);
+
+        if (tag == "enemy") {
+            for (auto i = 0; i < 5; ++i) {
+                animation->addFrame({ static_cast<float>(i * 40), 0.0f, 40.0f, 41.0f }, 0.1f);
+            }
+            offset = glm::vec2(20.0f, 20.5f); // 40x41 center
+        }
+        else if (tag == "item") {
+            for (auto i = 0; i < 4; ++i) {
+                animation->addFrame({ static_cast<float>(i * 32), 0.0f, 32.0f, 32.0f }, 0.1f);
+            }
+            offset = glm::vec2(16.0f, 16.0f); // 32x32 center
+        }
+        else { return; }
+
+        auto effect_obj = std::make_unique<engine::object::GameObject>("effect_" + tag);
+        effect_obj->addComponent<engine::component::TransformComponent>(center_pos - offset);
+
+        if (tag == "enemy") {
+            effect_obj->addComponent<engine::component::SpriteComponent>("assets/textures/FX/enemy-deadth.png", context_.getResourceManager());
+        }
+        else if (tag == "item") {
+            effect_obj->addComponent<engine::component::SpriteComponent>("assets/textures/FX/item-feedback.png", context_.getResourceManager());
+        }
+
+        // 添加动画组件，并设置为单次播放后自动移除
+        auto* animation_component = effect_obj->addComponent<engine::component::AnimationComponent>();
+        animation_component->addAnimation(std::move(animation));
+        animation_component->setOneShotRemoval(true);
+        animation_component->playAnimation("effect");
+
+        safeAddGameObject(std::move(effect_obj));  // 安全添加特效对象
+    }
+    
+}
