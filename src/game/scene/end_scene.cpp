@@ -159,15 +159,15 @@ void EndScene::createUI() {
 }
 
 void EndScene::onRestartClicked() {
-    spdlog::debug("EndScene: 点击了重新开始按钮");
+spdlog::debug("EndScene: 点击了重新开始按钮");
     
-    // 重置游戏数据
-    if (session_data_) {
-        session_data_->reset();
-        session_data_->save();
-    }
+// 重置游戏数据
+if (session_data_) {
+    session_data_->reset();
+    // 移除 save()，由此后的游戏状态自行决定何时存档
+}
     
-    // 创建新的游戏场景
+// 创建新的游戏场景
     auto game_scene = std::make_unique<GameScene>(
         "GameScene", 
         context_, 
@@ -180,6 +180,11 @@ void EndScene::onRestartClicked() {
 void EndScene::onBackClicked() {
     spdlog::debug("EndScene: 点击了返回主菜单按钮");
     
+    // 重置游戏数据中的胜利状态
+    if (session_data_) {
+        session_data_->setIsWin(false);
+    }
+
     // 创建标题场景
     auto title_scene = std::make_unique<TitleScene>(
         context_, 

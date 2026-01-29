@@ -17,6 +17,7 @@ private:
     int current_health_;
     int max_health_;
     int current_score_;
+    int score_confirmed_; ///< 已确认的关卡分数（存档时使用此值）
     int high_score_level1_; ///< 第一关最高分
     int high_score_level2_; ///< 第二关最高分
     std::string map_path_;
@@ -95,6 +96,11 @@ public:
      * @return 是否更新了最高分
      */
     bool updateHighScore();
+
+    /**
+     * @brief 转换关卡记录当前分数
+     */
+    void confirmScore() { score_confirmed_ = current_score_; }
 
     /**
      * @brief 检查是否回到第一关并清空当前分数

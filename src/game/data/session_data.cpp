@@ -10,6 +10,7 @@ game::data::SessionData::SessionData(int max_health, const std::string& initial_
     : current_health_(max_health),
       max_health_(max_health),
       current_score_(0),
+      score_confirmed_(0),
       high_score_level1_(0),
       high_score_level2_(0),
       map_path_(initial_map_path),
@@ -109,6 +110,7 @@ void game::data::SessionData::checkAndResetScore() {
         if (current_score_ > 0) {
             spdlog::info("Returning to level 1, resetting current score: {}", current_score_);
             current_score_ = 0;
+            score_confirmed_ = 0;
         }
     }
 }
@@ -116,6 +118,7 @@ void game::data::SessionData::checkAndResetScore() {
 void game::data::SessionData::reset() {
     current_health_ = max_health_;
     current_score_ = 0;
+    score_confirmed_ = 0;
     map_path_ = "assets/maps/level1.tmj";
     is_win_ = false;
     // 保持最高分不变
@@ -123,11 +126,11 @@ void game::data::SessionData::reset() {
 }
 
 nlohmann::json game::data::SessionData::toJson() const {
-    nlohmann::json json_data;
-    json_data["current_health"] = current_health_;
-    json_data["max_health"] = max_health_;
-    json_data["current_score"] = current_score_;
-    json_data["high_score_level1"] = high_score_level1_;
+nlohmann::json json_data;
+json_data["current_health"] = current_health_;
+json_data["max_health"] = max_health_;
+json_data["current_score"] = score_confirmed_;
+json_data["high_score_level1"] = high_score_level1_;
     json_data["high_score_level2"] = high_score_level2_;
     json_data["map_path"] = map_path_;
     json_data["is_win"] = is_win_;
@@ -143,6 +146,7 @@ void game::data::SessionData::fromJson(const nlohmann::json& json) {
     }
     if (json.contains("current_score")) {
         current_score_ = json["current_score"];
+        score_confirmed_ = current_score_;
     }
     if (json.contains("high_score_level1")) {
         high_score_level1_ = json["high_score_level1"];
@@ -193,6 +197,14 @@ bool game::data::SessionData::load() {
         file.close();
         
         fromJson(json_data);
+
+        // 加载后确保状态是可玩的
+        is_win_ = false; 
+        if (current_health_ <= 0) {
+            current_health_ = max_health_;
+            spdlog::info("Loaded health was 0, resetting to max health: {}", max_health_);
+        }
+
         spdlog::info("Game data loaded successfully from: {}", save_file_path_);
         return true;
     } catch (const std::exception& e) {

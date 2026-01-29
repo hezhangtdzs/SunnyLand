@@ -77,6 +77,3 @@ docs/                   # 项目文档
     ├── 08_key_mechanisms_part4.md
     └── 09_development_guidelines.md
 
-out/                    # CMake 默认构建输出（由 IDE/生成器产生）
-└── build/<config>/      # 例如 x64-debug, x64-release
-```

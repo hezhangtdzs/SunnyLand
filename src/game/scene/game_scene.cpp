@@ -79,7 +79,6 @@ namespace game::scene {
             if (session_data_->getCurrentHealth() <= 0) {
                 spdlog::info("玩家生命值耗尽，游戏失败！");
                 session_data_->setIsWin(false);
-                session_data_->save();
                 
                 // 创建结束场景
                 auto end_scene = std::make_unique<EndScene>(
@@ -101,7 +100,6 @@ namespace game::scene {
                     if (position.y > viewport_size.y + 100.0f) {
                         spdlog::info("玩家掉出屏幕，游戏失败！");
                         session_data_->setIsWin(false);
-                        session_data_->save();
                         
                         // 创建结束场景
                         auto end_scene = std::make_unique<EndScene>(
@@ -118,7 +116,6 @@ namespace game::scene {
 
     void GameScene::render() {
         Scene::render();
-        
     }
 
     bool GameScene::handleInput() {
@@ -132,8 +129,8 @@ namespace game::scene {
     }
 
     void GameScene::clean() {
-    Scene::clean();
-}
+        Scene::clean();
+    }
 
 void GameScene::initHUD() {
     auto* ui_manager = getUIManager();
@@ -150,7 +147,6 @@ void GameScene::initHUD() {
     hud_panel->setSize(viewport_size); 
     hud_panel->setBackgroundColor({ 0.0f, 0.0f, 0.0f, 0.0f }); 
     hud_panel->setBorderColor({ 0.0f, 0.0f, 0.0f, 0.0f }); 
-    
     hud_panel_ = hud_panel.get();
     
     // 初始化生命值图标 (Sunny Land 风格：左上角)
@@ -208,52 +204,52 @@ void GameScene::updateHUD() {
     }
 }
 
-bool GameScene::initLevel() {
-    // 加载关卡（level_loader通常加载完成后即可销毁，因此不存为成员变量）
-    engine::scene::LevelLoader level_loader;
-    if (!level_loader.loadLevel(level_path_, *this)) {
-        spdlog::error("关卡加载失败: {}", level_path_);
-        return false;
+    bool GameScene::initLevel() {
+        // 加载关卡（level_loader通常加载完成后即可销毁，因此不存为成员变量）
+        engine::scene::LevelLoader level_loader;
+        if (!level_loader.loadLevel(level_path_, *this)) {
+            spdlog::error("关卡加载失败: {}", level_path_);
+            return false;
+        }
+
+        // 注册"main"层到物理引擎
+        auto* main_layer = findGameObjectByName("main");
+        if (!main_layer) {
+            spdlog::error("未找到\"main\"层");
+            return false;
+        }
+        auto* tile_layer = main_layer->getComponent<engine::component::TileLayerComponent>();
+        if (!tile_layer) {
+            spdlog::error("\"main\"层没有 TileLayerComponent 组件");
+            return false;
+        }
+        context_.getPhysicsEngine().registerCollisionLayer(tile_layer);
+        spdlog::info("注册\"main\"层到物理引擎");
+
+        // 设置相机边界
+        auto world_size = main_layer->getComponent<engine::component::TileLayerComponent>()->getWorldSize();
+        context_.getCamera().setLimitBounds(engine::utils::Rect(glm::vec2(0.0f), world_size));
+
+        // 设置世界边界
+        context_.getPhysicsEngine().setWorldBounds(engine::utils::Rect(glm::vec2(0.0f), world_size));
+
+        spdlog::trace("关卡初始化完成。");
+        return true;
     }
 
-    // 注册"main"层到物理引擎
-    auto* main_layer = findGameObjectByName("main");
-    if (!main_layer) {
-        spdlog::error("未找到\"main\"层");
-        return false;
-    }
-    auto* tile_layer = main_layer->getComponent<engine::component::TileLayerComponent>();
-    if (!tile_layer) {
-        spdlog::error("\"main\"层没有 TileLayerComponent 组件");
-        return false;
-    }
-    context_.getPhysicsEngine().registerCollisionLayer(tile_layer);
-    spdlog::info("注册\"main\"层到物理引擎");
+    bool GameScene::initPlayer() {
+        player_ = findGameObjectByName("player");
+        if (!player_) {
+            spdlog::error("未找到玩家对象");
+            return false;
+        }
 
-    // 设置相机边界
-    auto world_size = main_layer->getComponent<engine::component::TileLayerComponent>()->getWorldSize();
-    context_.getCamera().setLimitBounds(engine::utils::Rect(glm::vec2(0.0f), world_size));
-
-    // 设置世界边界
-    context_.getPhysicsEngine().setWorldBounds(engine::utils::Rect(glm::vec2(0.0f), world_size));
-
-    spdlog::trace("关卡初始化完成。");
-    return true;
-}
-
-bool GameScene::initPlayer() {
-    player_ = findGameObjectByName("player");
-    if (!player_) {
-        spdlog::error("未找到玩家对象");
-        return false;
-    }
-
-    // 添加PlayerComponent到玩家对象
-    auto* player_component = player_->addComponent<game::component::PlayerComponent>();
-    if (!player_component) {
-        spdlog::error("无法添加 PlayerComponent 到玩家对象");
-        return false;
-    }
+        // 添加PlayerComponent到玩家对象
+        auto* player_component = player_->addComponent<game::component::PlayerComponent>();
+        if (!player_component) {
+            spdlog::error("无法添加 PlayerComponent 到玩家对象");
+            return false;
+        }
 
     // 如果会话数据存在，初始化玩家生命值
     if (session_data_) {
@@ -267,73 +263,74 @@ bool GameScene::initPlayer() {
         }
     }
 
-    // 相机跟随玩家
-    auto* player_transform = player_->getComponent<engine::component::TransformComponent>();
-    if (!player_transform) {
-        spdlog::error("玩家对象没有 TransformComponent 组件, 无法设置相机目标");
-        return false;
-    }
-    context_.getCamera().setTarget(player_transform);
-
-	if (auto* audio = player_->getComponent<engine::component::AudioComponent>()) {
-		audio->setMinIntervalMs(80);
-		spdlog::trace("玩家音频组件已由关卡数据加载。");
-	}
-
-    spdlog::trace("Player初始化完成。");
-
-    return true;
-}
-bool GameScene::initEnemyAndItem() {
-    bool success = true;
-    for (auto& game_object : game_objects_){
-        if (game_object->getName() == "eagle"){
-            if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
-                std::make_unique<engine::component::UpDownBehavior>(40.0f, 80.0f)); ai_component){
-                spdlog::info("为Eagle添加了UpDownBehavior");
-                /*if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
-                    ac->playAnimation("fly");
-                }*/
-            }
+        // 相机跟随玩家
+        auto* player_transform = player_->getComponent<engine::component::TransformComponent>();
+        if (!player_transform) {
+            spdlog::error("玩家对象没有 TransformComponent 组件, 无法设置相机目标");
+            return false;
         }
-        if (game_object->getName() == "frog"){
-            auto* transform = game_object->getComponent<engine::component::TransformComponent>();
-            float start_x = transform->getPosition().x;
-            float x_max = start_x - 10.0f;
-            float x_min = x_max - 90.0f;
+        context_.getCamera().setTarget(player_transform);
 
-            if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
-                std::make_unique<engine::component::JumpBehavior>(x_min, x_max, 60.0f, 250.0f, 2.0f)); ai_component){
-                spdlog::info("为Frog添加了JumpBehavior, 范围: [{}, {}]", x_min, x_max);
-                
-               /* if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
+		if (auto* audio = player_->getComponent<engine::component::AudioComponent>()) {
+			audio->setMinIntervalMs(80);
+			spdlog::trace("玩家音频组件已由关卡数据加载。");
+		}
+
+        spdlog::trace("Player初始化完成。");
+
+        return true;
+    }
+
+    bool GameScene::initEnemyAndItem() {
+        bool success = true;
+        for (auto& game_object : game_objects_) {
+            if (game_object->getName() == "eagle") {
+                if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
+                    std::make_unique<engine::component::UpDownBehavior>(40.0f, 80.0f)); ai_component) {
+                    spdlog::info("为Eagle添加了UpDownBehavior");
+                    /*if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
+                        ac->playAnimation("fly");
+                    }*/
+                }
+            }
+            if (game_object->getName() == "frog") {
+                auto* transform = game_object->getComponent<engine::component::TransformComponent>();
+                float start_x = transform->getPosition().x;
+                float x_max = start_x - 10.0f;
+                float x_min = x_max - 90.0f;
+
+                if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
+                    std::make_unique<engine::component::JumpBehavior>(x_min, x_max, 60.0f, 250.0f, 2.0f)); ai_component) {
+                    spdlog::info("为Frog添加了JumpBehavior, 范围: [{}, {}]", x_min, x_max);
+                    
+                   /* if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
+                        ac->playAnimation("idle");
+                    }*/
+                }
+            }
+            if (game_object->getName() == "opossum") {
+                if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
+                    std::make_unique<engine::component::PatrolBehavior>(50.0f, 200.0f)); ai_component) {
+                    spdlog::info("为Opossum添加了PatrolBehavior");
+                  /*  if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
+                        ac->playAnimation("walk");
+                    }*/
+                }
+            }
+            if (game_object->getTag() == "item") {
+                if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
                     ac->playAnimation("idle");
-                }*/
+                }
+                else {
+                    spdlog::error("Item对象缺少 AnimationComponent，无法播放动画。");
+                    success = false;
+                }
             }
         }
-        if (game_object->getName() == "opossum"){
-            if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
-                std::make_unique<engine::component::PatrolBehavior>(50.0f, 200.0f)); ai_component){
-                spdlog::info("为Opossum添加了PatrolBehavior");
-              /*  if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
-                    ac->playAnimation("walk");
-                }*/
-            }
-        }
-        if (game_object->getTag() == "item") {
-            if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
-                ac->playAnimation("idle");
-            }
-            else {
-                spdlog::error("Item对象缺少 AnimationComponent，无法播放动画。");
-                success = false;
-            }
-        }
+        return success;
     }
-    return success;
-}
-    void GameScene::handleObjectCollisions()
-    {
+
+    void GameScene::handleObjectCollisions() {
         // 从物理引擎中获取碰撞对
         auto collision_pairs = context_.getPhysicsEngine().getCollisionPairs();
         for (const auto& pair : collision_pairs) {
@@ -345,17 +342,10 @@ bool GameScene::initEnemyAndItem() {
                 if (p->getName() == "player" && (trigger->getTag() == "next_level" || trigger->getName() == "win")) {
                     if (trigger->getName() == "win") {
                         spdlog::info("恭喜！你赢了！");
-                        // 保存当前游戏状态
                         if (session_data_) {
                             session_data_->setIsWin(true);
-                            session_data_->save();
                         }
-                        
-                        // 创建结束场景
-                        auto end_scene = std::make_unique<EndScene>(
-                            context_, 
-                            scene_manager_, 
-                            session_data_);
+                        auto end_scene = std::make_unique<EndScene>(context_, scene_manager_, session_data_);
                         scene_manager_.requestReplaceScene(std::move(end_scene));
                         return true;
                     }
@@ -363,21 +353,14 @@ bool GameScene::initEnemyAndItem() {
                     std::string next_level_path = "assets/maps/" + trigger->getName() + ".tmj";
                     spdlog::info("玩家触碰关卡切换触发器，准备加载: {}", next_level_path);
                     
-                    // 保存当前游戏状态
                     if (session_data_) {
+                        session_data_->confirmScore();
                         session_data_->setMapPath(next_level_path);
-                        // 检查是否需要重置分数
                         session_data_->checkAndResetScore();
                         session_data_->save();
                     }
-                    
-                    // 创建新场景并传入会话数据
-                    auto next_scene = std::make_unique<GameScene>(
-                        "GameScene", 
-                        context_, 
-                        scene_manager_, 
-                        session_data_,
-                        next_level_path);
+
+                    auto next_scene = std::make_unique<GameScene>("GameScene", context_, scene_manager_, session_data_, next_level_path);
                     scene_manager_.requestReplaceScene(std::move(next_scene));
                     return true;
                 }
@@ -425,7 +408,6 @@ bool GameScene::initEnemyAndItem() {
 
         // 优化判定：使用底部高度和垂直速度
         float player_bottom = player_aabb.position.y + player_aabb.size.y;
-        // float enemy_top = enemy_aabb.position.y;  // 该变量未使用，已移除
         float enemy_middle = enemy_aabb.position.y + enemy_aabb.size.y * 0.5f;
 
         // 踩踏条件：
@@ -439,6 +421,9 @@ bool GameScene::initEnemyAndItem() {
             spdlog::info("玩家 {} 踩踏了敌人 {}", player->getName(), enemy->getName());
 			if (auto* player_audio = player->getComponent<engine::component::AudioComponent>()) {
 				player_audio->playSound("stomp", context_);
+			}
+			if (auto* audio = enemy->getComponent<engine::component::AudioComponent>()) {
+				audio->playSoundNearCamera("cry", context_, 420.0f);
 			}
             auto enemy_health = enemy->getComponent<engine::component::HealthComponent>();
             if (!enemy_health) {
@@ -546,6 +531,7 @@ bool GameScene::initEnemyAndItem() {
                     
                     // 保存当前状态（包含更新后的路径）
                     if (session_data_) {
+                        session_data_->confirmScore();
                         session_data_->setMapPath(next_level_path);
                         // 检查是否需要重置分数
                         session_data_->checkAndResetScore();
@@ -573,7 +559,6 @@ bool GameScene::initEnemyAndItem() {
         if (player_comp) {
             player_comp->takeDamage(1, context_);
             
-            // 更新会话数据中的生命值
             if (session_data_) {
                 auto* health = player->getComponent<engine::component::HealthComponent>();
                 if (health) {
@@ -624,5 +609,7 @@ bool GameScene::initEnemyAndItem() {
 
         safeAddGameObject(std::move(effect_obj));  // 安全添加特效对象
     }
+
+
     
 }
