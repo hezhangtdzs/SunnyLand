@@ -22,6 +22,7 @@ ParallaxComponent::ParallaxComponent(std::string& texture_id, const glm::vec2& p
 {
 	spdlog::trace("ParallaxComponent 构造完成，纹理ID：{}", texture_id);
 }
+engine::component::ParallaxComponent::~ParallaxComponent() = default;
 
 /**
  * @brief 析构函数
@@ -72,9 +73,9 @@ void ParallaxComponent::render(engine::core::Context& context)
 		return;
 	}
 	context.getRenderer().drawParallax(context.getCamera(),
-					   sprite_,transform_->getPosition(), 
-					   parallax_factor_,repeat_,
-					   transform_->getScale());
+									   sprite_,transform_->getPosition(), 
+									   parallax_factor_,repeat_,
+									   transform_->getScale());
 }
 
 /**

@@ -175,8 +175,9 @@ void TileLayerComponent::render(engine::core::Context& context)
 				// 特别是在相机移动时，避免亚像素偏移导致的缝隙
 				glm::vec2 scale(1.0f, 1.0f);
 				float overlap_epsilon = 1.0f; // 进一步增加重叠量以确保完全覆盖
-				scale.x = (static_cast<float>(tile_size_.x) + overlap_epsilon) / static_cast<float>(tile_size_.x);
-				scale.y = (static_cast<float>(tile_size_.y) + overlap_epsilon) / static_cast<float>(tile_size_.y);
+					scale.x = (static_cast<float>(tile_size_.x) + overlap_epsilon) / static_cast<float>(tile_size_.x);
+					scale.y = (static_cast<float>(tile_size_.y) + overlap_epsilon) / static_cast<float>(tile_size_.y);
+				}
 				renderer.drawSprite(camera, tile.sprite, tile_world_pos, scale);
 			}
 		}

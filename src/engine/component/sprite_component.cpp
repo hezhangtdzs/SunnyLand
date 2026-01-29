@@ -27,7 +27,7 @@ namespace engine::component {
                 : resource_manager_(&resource_manager), 
                 sprite_(texture_id, source_rect_opt, is_flipped),
                 alignment_(alignment)
-{
+{  
     if (!resource_manager_) {
         spdlog::critical("创建 SpriteComponent 时 ResourceManager 为空！，此组件将无效。");
         // 不要在游戏主循环中使用 try...catch / throw，会极大影响性能

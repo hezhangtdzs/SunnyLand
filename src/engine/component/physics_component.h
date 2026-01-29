@@ -80,7 +80,13 @@ namespace engine::component {
 		PhysicsComponent& operator=(PhysicsComponent&&) = delete;
 
 		// PhysicsEngine使用的物理方法
-		
+		void addForce(const glm::vec2& force) { if (enable_) force_ += force; }    ///< @brief 添加力
+		void clearForce() { force_ = { 0.0f, 0.0f }; }                                ///< @brief 清除力
+		const glm::vec2& getForce() const { return force_; }                        ///< @brief 获取当前力
+		float getMass() const { return mass_; }                                     ///< @brief 获取质量
+		bool isEnabled() const { return enable_; }                                 ///< @brief 获取组件是否启用
+		bool isUseGravity() const { return use_gravity_; }                          ///< @brief 获取组件是否受重力影响
+
 		/**
 		 * @brief 向物体添加力。
 		 * @param force 力向量

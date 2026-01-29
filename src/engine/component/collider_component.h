@@ -135,6 +135,8 @@ namespace engine::component {
 		 */
 		engine::physics::Collider* getCollider() const { return collider_.get(); }
 
+
+
 	private:
 		/**
 		 * @brief 组件初始化，获取变换组件。
