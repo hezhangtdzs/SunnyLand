@@ -24,7 +24,7 @@ namespace engine::render {
         
         // 初始化 SDL3_ttf 库
         if (!ttf_initialized) {
-            if (TTF_Init() < 0) {
+            if (!TTF_Init()) {
                 throw std::runtime_error("Failed to initialize SDL3_ttf: " + std::string(SDL_GetError()));
             }
             ttf_initialized = true;

@@ -5,6 +5,8 @@
 
 #include "engine/core/game_app.h"
 #include<spdlog/spdlog.h>
+#include "engine/scene/scene_manager.h"
+#include "game/scene/title_scene.h"
 
 /**
  * @brief 游戏的主入口函数。
@@ -18,9 +20,14 @@
  * 3. 启动游戏应用的运行循环
  * 4. 返回退出状态码
  */
+void onInitSceneManager(engine::scene::SceneManager& scene_manager) {
+    scene_manager.requestPushScene(std::make_unique<game::scene::TitleScene>(scene_manager.getContext(), scene_manager));
+}
+
 int main(int /* argc */, char* /* argv */[]) {
     engine::core::GameApp app;
     spdlog::set_level(spdlog::level::trace);
+    app.setOnInitCallback(onInitSceneManager);
     app.run();
     return 0;
 }

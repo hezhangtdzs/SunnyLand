@@ -14,15 +14,16 @@ namespace game::data {
  */
 class SessionData final {
 private:
-    int current_health_;
+    int current_health_; ///< 当前生命值
+    int saved_health_; ///< 上次保存的生命值（用于手动保存时）
     int max_health_;
-    int current_score_;
-    int score_confirmed_; ///< 已确认的关卡分数（存档时使用此值）
-    int high_score_level1_; ///< 第一关最高分
-    int high_score_level2_; ///< 第二关最高分
+    int current_score_; ///< 当前分数（累积）
+    int saved_score_; ///< 上次保存的分数（用于手动保存时）
+    int high_score_; ///< 最高分
     std::string map_path_;
     std::string save_file_path_;
     bool is_win_; ///< 游戏胜利/失败状态
+    bool should_save_data_; ///< 是否应该保存数据（仅在切换关卡时为true）
 
     /**
      * @brief 构造函数
@@ -80,16 +81,10 @@ public:
     const std::string& getSaveFilePath() const { return save_file_path_; }
 
     /**
-     * @brief 获取第一关最高分
-     * @return 第一关最高分
+     * @brief 获取最高分
+     * @return 最高分
      */
-    int getHighScoreLevel1() const { return high_score_level1_; }
-
-    /**
-     * @brief 获取第二关最高分
-     * @return 第二关最高分
-     */
-    int getHighScoreLevel2() const { return high_score_level2_; }
+    int getHighScore() const { return high_score_; }
 
     /**
      * @brief 更新最高分
@@ -98,9 +93,22 @@ public:
     bool updateHighScore();
 
     /**
-     * @brief 转换关卡记录当前分数
+     * @brief 准备保存数据（在切换关卡时调用）
      */
-    void confirmScore() { score_confirmed_ = current_score_; }
+    void prepareToSaveData() {
+        should_save_data_ = true;
+        saved_health_ = current_health_;
+        saved_score_ = current_score_;
+
+    }
+
+    /**
+     * @brief 取消保存数据标志（在保存后调用）
+     */
+    void cancelSaveData() {
+        should_save_data_ = false;
+
+    }
 
     /**
      * @brief 检查是否回到第一关并清空当前分数

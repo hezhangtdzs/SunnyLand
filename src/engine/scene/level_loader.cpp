@@ -10,6 +10,7 @@
 #include "../component/audio_component.h"
 #include "../physics/collider.h"
 #include "../object/game_object.h"
+#include "../object/object_builder.h"
 #include "../scene/scene.h"
 #include "../core/context.h"
 #include "../resource/resource_manager.h"
@@ -170,163 +171,51 @@ namespace engine::scene {
     }
 
     void LevelLoader::loadObjectLayer(const nlohmann::json & layer_json, Scene & scene)
-        {
-            if (!layer_json.contains("objects") || !layer_json["objects"].is_array()) {
-                spdlog::error("对象图层 '{}' 缺少 'objects' 属性。", layer_json.value("name", "Unnamed"));
-                return;
-            }
+    {
+        if (!layer_json.contains("objects") || !layer_json["objects"].is_array()) {
+            spdlog::error("对象图层 '{}' 缺少 'objects' 属性。", layer_json.value("name", "Unnamed"));
+            return;
+        }
 
-            const auto& objects = layer_json["objects"];
-            for (const auto& object : objects) {
-                auto gid = object.value("gid", 0);
+        // 创建 ObjectBuilder 实例
+        engine::object::ObjectBuilder builder(*this, scene.getContext());
 
-                if (gid == 0) {
-                    // 处理形状对象 (如矩形 trigger)
-                    auto position = glm::vec2(object.value("x", 0.0f), object.value("y", 0.0f));
-                    auto size = glm::vec2(object.value("width", 0.0f), object.value("height", 0.0f));
-                    auto rotation = object.value("rotation", 0.0f);
-                    std::string name = object.value("name", "Unnamed");
+        const auto& objects = layer_json["objects"];
+        for (const auto& object : objects) {
+            auto gid = object.value("gid", 0);
 
-                    auto game_object = std::make_unique<engine::object::GameObject>(name);
-                    game_object->addComponent<engine::component::TransformComponent>(position, rotation);
-
-                    // 如果有尺寸，通常它是某种碰撞区或触发器
-                    if (size.x > 0 && size.y > 0) {
-                        auto collider = std::make_unique<engine::physics::AABBCollider>(size);
-                        game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
-                        // 添加静态物理组件，以便参与碰撞检测
-                        game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
-                    }
-
-                    // 处理属性
-                    if (auto tag = getTileProperty<std::string>(object, "tag"); tag) {
-                        game_object->setTag(tag.value());
-                    }
-
+            if (gid == 0) {
+                // 处理形状对象 (如矩形 trigger)
+                builder.configure(&object);
+                builder.build();
+                auto game_object = builder.getGameObject();
+                if (game_object) {
                     scene.addGameObject(std::move(game_object));
                 }
-                else {
-                    // 如果gid存在，则代表这是一个带图像的对象
-                    auto tile_data = getTileDataByGid(gid);
-                    auto& tile_info = tile_data.info;
-                    auto* tile_json = tile_data.json_ptr;
+            }
+            else {
+                // 如果gid存在，则代表这是一个带图像的对象
+                auto tile_data = getTileDataByGid(gid);
+                auto& tile_info = tile_data.info;
+                auto* tile_json = tile_data.json_ptr;
 
-                    if (tile_info.sprite.getTextureId().empty()) {
-                        spdlog::error("gid为 {} 的瓦片没有图像纹理。", gid);
-                        continue;
-                    }
+                if (tile_info.sprite.getTextureId().empty()) {
+                    spdlog::error("gid为 {} 的瓦片没有图像纹理。", gid);
+                    continue;
+                }
 
-                    // 1. 获取Transform信息
-                    auto position = glm::vec2(object.value("x", 0.0f), object.value("y", 0.0f));
-                    auto dst_size = glm::vec2(object.value("width", 0.0f), object.value("height", 0.0f));
-
-                    // !! 关键的坐标转换 !!
-                    position = glm::vec2(position.x, position.y - dst_size.y);
-
-                    auto rotation = object.value("rotation", 0.0f);
-
-                    // 2. 计算缩放
-                    auto src_size_opt = tile_info.sprite.getSourceRect();
-                    if (!src_size_opt) {
-                        spdlog::error("gid为 {} 的瓦片没有源矩形。", gid);
-                        continue;
-                    }
-                    auto src_size = glm::vec2(src_size_opt->w, src_size_opt->h);
-                    auto scale = dst_size / src_size;
-
-                    // 3. 获取对象名称
-                    const std::string& object_name = object.value("name", "Unnamed");
-
-                    // 4. 创建GameObject并添加组件
-                    auto game_object = std::make_unique<engine::object::GameObject>(object_name);
-                    game_object->addComponent<engine::component::TransformComponent>(position, rotation, scale);
-                    game_object->addComponent<engine::component::SpriteComponent>(std::move(tile_info.sprite), scene.getContext().getResourceManager());
-                    
-                    // 可以在这里处理 tile_json 中的自定义属性，例如碰撞盒等
-                    if (tile_info.type == engine::component::TileType::SOLID && tile_json) {
-                        auto collider = std::make_unique<engine::physics::AABBCollider>(src_size);
-                        game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
-						game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
-                        game_object->setTag("solid");
-					}
-					else if (tile_info.type == engine::component::TileType::HAZARD && tile_json) {
-						auto rect = getCollisionRect(tile_json);
-						auto collider_size = rect.has_value() ? rect->size : src_size;
-						auto collider = std::make_unique<engine::physics::AABBCollider>(collider_size);
-						auto collider_component = game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
-						if (rect.has_value()) collider_component->setOffset(rect->position);
-						game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
-						game_object->setTag("hazard");
-					}
-					else if (auto rect = getCollisionRect(tile_json); rect.has_value()) {
-
-                        auto collider = std::make_unique<engine::physics::AABBCollider>(rect->size);
-                        auto collider_component = game_object->addComponent<engine::component::ColliderComponent>(std::move(collider));
-                        collider_component->setOffset(rect->position);
-						game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), false);
-                    }
-                    if (tile_json) {
-                        if (auto tag = getTileProperty<std::string>(*tile_json, "tag"); tag) {
-                            game_object->setTag(tag.value());
-                        }
-                        if (auto gravity = getTileProperty<bool>(*tile_json, "gravity"); gravity) {
-                            auto* pc = game_object->getComponent<engine::component::PhysicsComponent>();
-                            if (pc) {
-                                pc->setUseGravity(gravity.value());
-                            }
-                            else { // 如果对象还没有物理组件，则为其添加一个
-                                game_object->addComponent<engine::component::PhysicsComponent>(&scene.getContext().getPhysicsEngine(), gravity.value());
-                            }
-                        }
-                        auto anim_string = getTileProperty<std::string>(*tile_json, "animation");
-                        if (anim_string) {
-                            // 解析string为JSON对象
-                            nlohmann::json anim_json;
-                            try {
-                                anim_json = nlohmann::json::parse(anim_string.value());
-                            }
-                            catch (const nlohmann::json::parse_error& e) {
-                                spdlog::error("解析动画 JSON 字符串失败: {}", e.what());
-                                continue;  // 跳过此对象
-                            }
-                            // 添加AnimationComponent
-                            auto* ac = game_object->addComponent<engine::component::AnimationComponent>();
-                            // 添加动画到 AnimationComponent
-                            addAnimationFromTileJson(ac, anim_json, src_size);
-                        }
-						if (auto health = getTileProperty<int>(*tile_json, "health"); health) {
-							game_object->addComponent<engine::component::HealthComponent>(health.value());
-                        }
-
-						if (auto sound_string = getTileProperty<std::string>(*tile_json, "sound"); sound_string) {
-							nlohmann::json sound_json;
-							try {
-								sound_json = nlohmann::json::parse(sound_string.value());
-							}
-							catch (const nlohmann::json::parse_error& e) {
-								spdlog::error("解析音效 JSON 字符串失败: {}", e.what());
-								sound_json = nlohmann::json();
-							}
-
-							if (sound_json.is_object()) {
-								auto* audio = game_object->addComponent<engine::component::AudioComponent>();
-								for (const auto& kv : sound_json.items()) {
-									if (kv.value().is_string()) {
-										audio->registerSound(kv.key(), kv.value().get<std::string>());
-									}
-								}
-							}
-						}
-
-
-                    }
-                    
-                    // 5. 添加到场景中
+                // 使用 ObjectBuilder 构建对象
+                builder.configure(&object, tile_json, std::move(tile_info));
+                builder.build();
+                auto game_object = builder.getGameObject();
+                
+                if (game_object) {
                     scene.addGameObject(std::move(game_object));
-                    spdlog::info("加载对象: '{}' 完成", object_name);
+                    spdlog::info("加载对象: '{}' 完成", object.value("name", "Unnamed"));
                 }
             }
-        } 
+        }
+    } 
     
     const nlohmann::json* LevelLoader::findTileset(int gid)
     {

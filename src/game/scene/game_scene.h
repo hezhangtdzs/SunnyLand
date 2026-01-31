@@ -53,8 +53,9 @@ namespace game::scene {
         void handleObjectCollisions();              ///< @brief 处理游戏对象间的碰撞逻辑（从PhysicsEngine获取信息）
         void PlayerVSEnemyCollision(engine::object::GameObject* player, engine::object::GameObject* enemy);  ///< @brief 玩家与敌人碰撞处理
         void PlayerVSItemCollision(engine::object::GameObject* player, engine::object::GameObject* item);    ///< @brief 玩家与道具碰撞处理
-	    void handleTileTriggers();				 ///< @brief 处理游戏对象与瓦片触发事件的逻辑
+        void handleTileTriggers();					 ///< @brief 处理游戏对象与瓦片触发事件的逻辑
         void processHazardDamage(engine::object::GameObject* player); ///< @brief 处理玩家受到的危险伤害 (尖刺、陷阱等)
+        void exampleUsageOfGameObjectBuilder();     ///< @brief GameObjectBuilder使用示例（生成器模式）
         /**
          * @brief 创建一个特效对象（一次性）。
 

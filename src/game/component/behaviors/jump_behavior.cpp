@@ -1,12 +1,12 @@
 #include "jump_behavior.h"
-#include "../transform_component.h"
-#include "../physics_component.h"
-#include "../sprite_component.h"
-#include "../animation_component.h"
-#include "../audio_component.h"
-#include "../../object/game_object.h"
+#include "../../../engine/component/transform_component.h"
+#include "../../../engine/component/physics_component.h"
+#include "../../../engine/component/sprite_component.h"
+#include "../../../engine/component/animation_component.h"
+#include "../../../engine/component/audio_component.h"
+#include "../../../engine/object/game_object.h"
 
-engine::component::JumpBehavior::JumpBehavior(float xMin, float xMax, float moveSpeed, float jumpForce, float jumpCooldown)
+game::component::JumpBehavior::JumpBehavior(float xMin, float xMax, float moveSpeed, float jumpForce, float jumpCooldown)
     : moveSpeed_(moveSpeed),
       jumpForce_(jumpForce),
       xMin_(xMin),
@@ -17,29 +17,29 @@ engine::component::JumpBehavior::JumpBehavior(float xMin, float xMax, float move
 {
 }
 
-void engine::component::JumpBehavior::init(engine::object::GameObject* /*owner*/)
+void game::component::JumpBehavior::init(engine::object::GameObject* /*owner*/)
 {
 }
 
-void engine::component::JumpBehavior::update(engine::object::GameObject* owner, float deltaTime, engine::core::Context& context)
+void game::component::JumpBehavior::update(engine::object::GameObject* owner, float deltaTime, engine::core::Context& context)
 {
     if (!owner) return;
     
-    auto* transform = owner->getComponent<TransformComponent>();
-    auto* physics = owner->getComponent<PhysicsComponent>();
-    auto* sprite = owner->getComponent<SpriteComponent>();
-    auto* anim = owner->getComponent<AnimationComponent>();
-    
+    auto* transform = owner->getComponent<engine::component::TransformComponent>();
+    auto* physics = owner->getComponent<engine::component::PhysicsComponent>();
+    auto* sprite = owner->getComponent<engine::component::SpriteComponent>();
+    auto* anim = owner->getComponent<engine::component::AnimationComponent>();
+
     if (!transform || !physics) return;
-    
+
     bool onGround = physics->hasCollidedBelow();
-	if (onGround && !wasOnGround_) {
-		if (auto* audio = owner->getComponent<AudioComponent>()) {
-			audio->playSoundNearCamera("cry", context, 360.0f);
-		}
-	}
-	wasOnGround_ = onGround;
-    
+    if (onGround && !wasOnGround_) {
+        if (auto* audio = owner->getComponent<engine::component::AudioComponent>()) {
+            audio->playSoundNearCamera("cry", context, 360.0f);
+        }
+    }
+    wasOnGround_ = onGround;
+
     if (onGround) {
         // 落地后立即停止水平移动，解决滑动问题
         physics->velocity_.x = 0.0f;
@@ -82,7 +82,7 @@ void engine::component::JumpBehavior::update(engine::object::GameObject* owner, 
             }
         }
     }
-    
+
     // 设置精灵翻转
     if (sprite) {
         sprite->setFlipped(movingRight_);

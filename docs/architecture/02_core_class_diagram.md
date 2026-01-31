@@ -11,15 +11,17 @@ classDiagram
     }
 
     class SceneManager {
-        -scene_stack_ : vector<Scene*>
+        -scene_stack_ : vector<unique_ptr~Scene~>
         -pending_action_ : enum
-        -session_data_ : SessionData*
+        -session_data_ : shared_ptr~SessionData~
         -session_data_initialized_ : bool
-        +requestPushScene(Scene*)
+        +requestPushScene(unique_ptr~Scene~&&)
+        +requestPopScene()
+        +requestReplaceScene(unique_ptr~Scene~&&)
         +update(dt)
         +render()
-        +getSessionData() : SessionData*
-        +setSessionData(SessionData*)
+        +getSessionData() : shared_ptr~SessionData~
+        +setSessionData(shared_ptr~SessionData~)
     }
 
     class Scene {
@@ -42,6 +44,13 @@ classDiagram
         +createUI()
         +onRestartClicked()
         +onBackClicked()
+    }
+
+    class HelpsScene {
+        +HelpsScene(Context&, SceneManager&)
+        +init()
+        +handleInput()
+        +createUI()
     }
 
     class LevelLoader {
@@ -72,13 +81,21 @@ classDiagram
     }
 
     class AnimationComponent {
-        -animations_ : map<string, Animation*>
+        -animations_ : unordered_map<string, unique_ptr~Animation~>
+        -sprite_component_ : SpriteComponent*
         -current_animation_ : Animation*
         -animation_timer_ : float
         -is_playing_ : bool
-        +addAnimation(Animation*)
-        +playAnimation(name)
-        +isAnimationFinished()
+        -is_one_shot_removal_ : bool
+        +addAnimation(unique_ptr~Animation~)
+        +playAnimation(string)
+        +stopAnimation()
+        +setPlaying(bool)
+        +getCurrentAnimationName() : string
+        +isPlaying() : bool
+        +isAnimationFinished() : bool
+        +isOneShotRemoval() : bool
+        +setOneShotRemoval(bool)
     }
 
     class GameObject {
@@ -214,34 +231,75 @@ classDiagram
     }
 
     class PhysicsComponent {
+        -physics_engine_ : PhysicsEngine*
+        -transform_component_ : TransformComponent*
+        -force_ : vec2
         -mass_ : float
         -use_gravity_ : bool
-        -force_ : vec2
-        -velocity_ : vec2
+        -enable_ : bool
         -collided_below_ : bool
         -collided_above_ : bool
         -collided_left_ : bool
         -collided_right_ : bool
-        -climbing_ : bool
+        -is_climbing_ : bool
+        -suppress_snap_timer_ : float
+        +velocity_ : vec2
         +addForce(vec2)
-        +setVelocity(vec2)
+        +clearForce()
+        +getForce() : vec2
+        +getMass() : float
+        +isEnabled() : bool
+        +isUseGravity() : bool
+        +setEnabled(bool)
         +setMass(float)
         +setUseGravity(bool)
         +setClimbing(bool)
         +isClimbing() : bool
+        +suppressSnapFor(float)
+        +isSnapSuppressed() : bool
+        +tickSnapSuppression(float)
+        +setVelocity(vec2)
+        +getVelocity() : vec2
+        +getTransform() : TransformComponent*
+        +resetCollisionFlags()
         +hasCollidedBelow() : bool
         +hasCollidedAbove() : bool
         +hasCollidedLeft() : bool
         +hasCollidedRight() : bool
+        +setCollidedBelow(bool)
+        +setCollidedAbove(bool)
+        +setCollidedLeft(bool)
+        +setCollidedRight(bool)
     }
 
     class PlayerComponent {
-        -current_state_ : PlayerState*
+        -transform_component_ : TransformComponent*
+        -sprite_component_ : SpriteComponent*
+        -physics_component_ : PhysicsComponent*
+        -animation_component_ : AnimationComponent*
+        -health_component_ : HealthComponent*
+        -audio_component_ : AudioComponent*
+        -current_state_ : unique_ptr~PlayerState~
         -is_dead_ : bool
         -move_force_ : float
         -jump_force_ : float
-        +setState(PlayerState*)
-        +processMovementInput(Context&, float)
+        -max_move_speed_ : float
+        -friction_ : float
+        -stunned_duration_ : float
+        -coyote_timer_ : float
+        -coyote_grace_duration_ : float
+        +setState(unique_ptr~PlayerState~)
+        +processMovementInput(Context&, float) : bool
+        +takeDamage(int, Context&) : bool
+        +isOverLadder(Context&) : bool
+        +isDead() : bool
+        +getMoveForce() : float
+        +getJumpForce() : float
+        +getMaxMoveSpeed() : float
+        +getFriction() : float
+        +getStunnedDuration() : float
+        +setCoyoteTimer(float)
+        +getCoyoteTimer() : float
     }
 
     class PlayerState {
@@ -307,11 +365,19 @@ classDiagram
         -currentHealth_ : int
         -invincibility_duration_ : float
         -invincibility_timer_ : float
-        +takeDamage(damage) : bool
-        +heal(amount)
-        +isAlive() : bool
+        +HealthComponent(int maxHealth, float invincibility_duration)
+        +setMaxHealth(int)
+        +setCurrentHealth(int)
+        +setInvincibilityDuration(float)
+        +setInvincible(float)
+        +getCurrentHealth() : int
+        +getMaxHealth() : int
         +isInvincible() : bool
+        +getInvincibilityDuration() : float
         +getInvincibilityTimer() : float
+        +takeDamage(int damage) : bool
+        +heal(int amount)
+        +isAlive() : bool
     }
 
     class InputManager {
@@ -361,31 +427,94 @@ classDiagram
 
     class SessionData {
         -current_health_ : int
+        -saved_health_ : int
         -max_health_ : int
         -current_score_ : int
-        -high_score_level1_ : int
-        -high_score_level2_ : int
+        -saved_score_ : int
+        -high_score_ : int
         -map_path_ : string
         -save_file_path_ : string
         -is_win_ : bool
-        +getInstance() : SessionData*
+        -should_save_data_ : bool
+        -instance_ : weak_ptr~SessionData~
+        +getInstance(max_health, initial_map_path, save_file_path) : shared_ptr~SessionData~
         +save() : bool
         +load() : bool
         +getCurrentHealth() : int
         +setCurrentHealth(int)
         +getMaxHealth() : int
-        +setCurrentHealth(int)
+        +setMaxHealth(int)
         +getCurrentScore() : int
         +setCurrentScore(int)
         +addScore(int) : void
         +getMapPath() : string
         +setMapPath(string)
-        +getHighScoreLevel1() : int
-        +getHighScoreLevel2() : int
+        +getHighScore() : int
+        +updateHighScore() : bool
         +getIsWin() : bool
         +setIsWin(bool)
         +reset()
-        +updateHighScore() : bool
+        +prepareToSaveData()
+        +cancelSaveData()
+        +checkAndResetScore()
+    }
+
+    class GameState {
+        -renderer_ : SDL_Renderer*
+        -current_state_ : GameStateType
+        -window_ : SDL_Window*
+        +GameState(SDL_Renderer*, SDL_Window*, GameStateType)
+        +getState() : GameStateType
+        +setState(GameStateType)
+        +isPlaying() : bool
+        +isPaused() : bool
+        +isGameOver() : bool
+        +getWindowSize() : vec2
+        +setWindowSize(vec2)
+        +getWindowLogicalSize() : vec2
+        +setWindowLogicalSize(vec2)
+    }
+
+    class ObjectBuilder {
+        <<abstract>>
+        -level_loader_ : LevelLoader&
+        -context_ : Context&
+        -game_object_ : unique_ptr~GameObject~
+        -object_json_ : json*
+        -tile_json_ : json*
+        -tile_info_ : TileInfo
+        +ObjectBuilder(LevelLoader&, Context&)
+        +configure(json*) : ObjectBuilder*
+        +configure(json*, json*, TileInfo) : ObjectBuilder*
+        +build() : void
+        +getGameObject() : unique_ptr~GameObject~
+        #buildBase() : void
+        #buildTransform() : void
+        #buildSprite() : void
+        #buildPhysics() : void
+        #buildAnimation() : void
+        #buildAudio() : void
+        #buildHealth() : void
+    }
+
+    class GameObjectBuilder {
+        -enemy_type_ : optional~string~
+        -item_type_ : optional~string~
+        -is_player_ : bool
+        -target_object_ : GameObject*
+        +GameObjectBuilder(LevelLoader&, Context&)
+        +build() : void
+        +enhance(GameObject*) : GameObjectBuilder*
+        +buildEnhancement() : bool
+        +setEnemyType(string) : GameObjectBuilder*
+        +setItemType(string) : GameObjectBuilder*
+        +setAsPlayer() : GameObjectBuilder*
+        +autoDetectType(string) : GameObjectBuilder*
+        +resetBuilder() : GameObjectBuilder*
+        -buildGameSpecific(GameObject*) : void
+        -buildEnemyAI(GameObject*) : void
+        -buildPlayerComponent(GameObject*) : void
+        -buildItemComponents(GameObject*) : void
     }
 
     class UIManager {
@@ -507,6 +636,7 @@ classDiagram
     EndScene ..> SessionData : 访问和修改游戏状态
     EndScene ..> TitleScene : 切换场景
     EndScene ..> GameScene : 切换场景
+    HelpsScene --|> Scene
 
     GameObject "1" *-- "many" Component
     Component <|-- TransformComponent
@@ -553,4 +683,9 @@ classDiagram
     AudioPlayer ..> ResourceManager : 通过资源系统获取音频
     AudioComponent ..> Context : 通过 Context 调用 AudioPlayer
     SessionData ..> JSON : 使用JSON库进行序列化/反序列化
+    GameState ..> GameStateType : 使用状态枚举
+    ObjectBuilder <|-- GameObjectBuilder : 继承
+    ObjectBuilder ..> LevelLoader : 依赖
+    ObjectBuilder ..> GameObject : 构建
+    GameObjectBuilder ..> GameObject : 构建/增强
 ```

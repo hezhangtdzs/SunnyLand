@@ -13,6 +13,10 @@ namespace engine::component {
 	class AnimationComponent;
 
 }
+namespace engine::object {
+    class ObjectBuilder;
+}
+
 namespace engine::scene {
     class Scene;
 
@@ -30,6 +34,8 @@ namespace engine::scene {
      * 支持加载图片图层、瓦片图层和对象图层，并处理外部瓦片集 (.tsj) 的链接。
      */
     class LevelLoader final {
+        // 友元类声明，允许 ObjectBuilder 访问私有方法
+        friend class engine::object::ObjectBuilder;
         std::string map_path_;      ///< 地图文件所在的目录路径（用于解析相对路径）
         glm::ivec2 map_size_;       ///< 地图的总尺寸（以瓦片为单位，x为宽，y为高）
         glm::ivec2 tile_size_;      ///< 单个瓦片的标准尺寸（像素）

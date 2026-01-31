@@ -68,9 +68,6 @@ add_executable(${TARGET}
     src/engine/component/animation_component.cpp
     src/engine/component/audio_component.cpp
     src/engine/component/ai_component.cpp
-    src/engine/component/behaviors/jump_behavior.cpp
-    src/engine/component/behaviors/patrol_behavior.cpp
-    src/engine/component/behaviors/up_down_behavior.cpp
     src/engine/component/collider_component.cpp
     src/engine/component/health_component.cpp
     src/engine/component/parallax_component.cpp
@@ -80,6 +77,7 @@ add_executable(${TARGET}
     src/engine/component/transform_component.cpp
 
     src/engine/object/game_object.cpp
+    src/engine/object/object_builder.cpp
 
     src/engine/scene/level_loader.cpp
     src/engine/scene/scene.cpp
@@ -89,6 +87,8 @@ add_executable(${TARGET}
     src/engine/physics/physics_engine.cpp
 
     src/game/data/session_data.cpp
+
+    src/game/object/game_object_builder.cpp
 
     src/game/scene/game_scene.cpp
     src/game/scene/title_scene.cpp
@@ -106,6 +106,9 @@ add_executable(${TARGET}
     src/game/component/state/jump_state.cpp
     src/game/component/state/player_state.cpp
     src/game/component/state/walk_state.cpp
+    src/game/component/behaviors/jump_behavior.cpp
+    src/game/component/behaviors/patrol_behavior.cpp
+    src/game/component/behaviors/up_down_behavior.cpp
 )
 
 # 链接库

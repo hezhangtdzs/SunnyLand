@@ -6,6 +6,35 @@
 - **数据驱动**: 使用 JSON 配置文件和 Tiled 地图编辑器进行关卡设计
 - **资源共享**: 通过智能指针管理资源生命周期，避免重复加载
 - **安全的内存管理**: 延迟对象添加/删除，避免迭代器失效
+- **生成器模式**: 使用 Builder 模式构建复杂的游戏对象，支持灵活的对象配置
+
+## 架构设计模式
+
+### 1. 组件化架构 (Component-Based Architecture)
+游戏对象 (`GameObject`) 本身不包含具体功能，而是通过挂载各种组件 (`Component`) 来实现行为。这种设计允许：
+- 灵活组合对象行为
+- 运行时动态添加/移除功能
+- 避免深层继承层次
+
+### 2. 生成器模式 (Builder Pattern)
+使用生成器模式构建复杂的游戏对象，主要包含：
+- **ObjectBuilder**: 抽象生成器，定义构建游戏对象的通用步骤
+- **GameObjectBuilder**: 具体生成器，实现游戏特定对象的构建逻辑
+
+优势：
+- 将复杂对象的构建过程分解为步骤
+- 支持链式调用配置对象
+- 允许通过增强模式为已有对象添加组件
+
+### 3. 状态模式 (State Pattern)
+用于管理玩家行为和 UI 交互状态：
+- **PlayerState**: 管理玩家各种状态（Idle、Walk、Jump、Fall 等）
+- **UIState**: 管理 UI 元素交互状态（Normal、Hover、Pressed）
+
+### 4. 策略模式 (Strategy Pattern)
+用于实现可替换的 AI 行为：
+- **AIBehavior**: 定义 AI 行为接口
+- **PatrolBehavior / UpDownBehavior / JumpBehavior**: 具体 AI 策略实现
 
 ## 技术栈 (Tech Stack)
 

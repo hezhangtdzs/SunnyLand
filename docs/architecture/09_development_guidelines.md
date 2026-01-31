@@ -187,3 +187,141 @@ if (player) {
     }
 }
 ```
+
+## 10. 使用生成器模式（示例）
+
+### 10.1 从头构建新对象
+
+```cpp
+#include "game/object/game_object_builder.h"
+
+// 创建生成器
+GameObjectBuilder builder(level_loader, context);
+
+// 构建敌人对象
+auto enemy = builder
+    .configure(&object_json, &tile_json, tile_info)
+    .setEnemyType("eagle")  // 设置敌人类型
+    .build()
+    .getGameObject();
+
+// 将对象添加到场景
+scene->safeAddGameObject(std::move(enemy));
+```
+
+### 10.2 使用自动类型检测
+
+```cpp
+GameObjectBuilder builder(level_loader, context);
+
+// 根据对象名称自动推断类型
+auto game_object = builder
+    .configure(&object_json, &tile_json, tile_info)
+    .autoDetectType(object_name)  // 自动识别 player/eagle/frog 等
+    .build()
+    .getGameObject();
+
+scene->safeAddGameObject(std::move(game_object));
+```
+
+### 10.3 增强已有对象
+
+```cpp
+GameObjectBuilder builder(level_loader, context);
+
+// 为已有对象添加游戏特定组件
+builder.autoDetectType("frog")
+       .enhance(existing_object)
+       .buildEnhancement();
+
+// 现在 existing_object 已经添加了 JumpBehavior AI
+```
+
+### 10.4 支持的类型映射
+
+| 名称 | 类型 | 自动添加的组件 |
+|:---|:---|:---|
+| "player" | 玩家 | PlayerComponent + 状态机 |
+| "eagle" | 敌人 | AIComponent + UpDownBehavior |
+| "frog" | 敌人 | AIComponent + JumpBehavior |
+| "opossum" | 敌人 | AIComponent + PatrolBehavior |
+| "fruit" | 道具 | 动画播放 + "item" 标签 |
+| "gem" | 道具 | 动画播放 + "item" 标签 |
+
+## 11. 使用 GameState（示例）
+
+### 11.1 初始化 GameState
+
+```cpp
+// 在 GameApp 中初始化
+auto game_state = std::make_unique<engine::core::GameState>(
+    renderer, 
+    window, 
+    engine::core::GameStateType::Title
+);
+```
+
+### 11.2 状态切换
+
+```cpp
+// 开始游戏
+void TitleScene::onStartClicked() {
+    context_.getGameState().setState(engine::core::GameStateType::Playing);
+    scene_manager_.requestReplaceScene(std::make_unique<GameScene>(...));
+}
+
+// 暂停游戏
+void GameScene::handleInput() {
+    if (input_manager.isActionPressed("pause")) {
+        if (game_state_.isPlaying()) {
+            game_state_.setState(engine::core::GameStateType::Paused);
+            scene_manager_.requestPushScene(std::make_unique<MenuScene>(...));
+        }
+    }
+}
+
+// 恢复游戏
+void MenuScene::onResumeClicked() {
+    context_.getGameState().setState(engine::core::GameStateType::Playing);
+    scene_manager_.requestPopScene();
+}
+```
+
+### 11.3 根据状态处理逻辑
+
+```cpp
+void GameScene::update(float delta_time) {
+    // 只有在游戏进行中状态才更新游戏逻辑
+    if (!context_.getGameState().isPlaying()) {
+        return;
+    }
+    
+    // 更新物理
+    context_.getPhysicsEngine().update(delta_time);
+    
+    // 更新游戏对象
+    for (auto& game_object : game_objects_) {
+        game_object->update(delta_time, context_);
+    }
+}
+```
+
+### 11.4 窗口尺寸查询
+
+```cpp
+// 获取窗口逻辑尺寸（用于 UI 布局）
+auto window_size = context_.getGameState().getWindowLogicalSize();
+float center_x = window_size.x / 2.0f;
+float center_y = window_size.y / 2.0f;
+
+// 创建居中的 UI 元素
+auto button = std::make_unique<UIButton>(
+    context_,
+    normal_sprite,
+    hover_sprite,
+    pressed_sprite,
+    glm::vec2(center_x - button_width / 2, center_y - button_height / 2),
+    glm::vec2(button_width, button_height),
+    callback
+);
+```

@@ -35,6 +35,7 @@ namespace engine::core {
         int target_fps_ = 144;                  ///< 目标 FPS 设置，0 表示不限制
 
         // 音频设置
+        float master_volume_ = 0.5f;             ///< 主音量 (0.0 - 1.0)
         float music_volume_ = 0.5f;             ///< 音乐音量 (0.0 - 1.0)
         float sound_volume_ = 0.5f;             ///< 音效音量 (0.0 - 1.0)
 

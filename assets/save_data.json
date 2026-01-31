@@ -1,8 +1,7 @@
 {
-    "current_health": 3,
+    "current_health": 2,
     "current_score": 600,
-    "high_score_level1": 1150,
-    "high_score_level2": 1600,
+    "high_score": 1050,
     "is_win": false,
     "map_path": "assets/maps/level2.tmj",
     "max_health": 3

@@ -4,7 +4,7 @@
  */
 
 #include "audio_player.h"
-
+#include "../core/config.h"
 #include "../resource/resource_manager.h"
 #include <algorithm>
 #include <cmath>
@@ -23,8 +23,11 @@ namespace engine::audio {
 	 * @brief 构造函数，创建一个新的音频播放器。
 	 * @param resource_manager 资源管理器引用
 	 */
-	AudioPlayer::AudioPlayer(engine::resource::ResourceManager& resource_manager)
-		: resource_manager_(resource_manager) {
+	AudioPlayer::AudioPlayer(engine::resource::ResourceManager& resource_manager, engine::core::Config& config)
+		: resource_manager_(resource_manager), config_(config) {
+			setMasterVolume(config_.master_volume_);
+			setSoundVolume(config_.sound_volume_);
+			setMusicVolume(config_.music_volume_);
 	}
 
 	/**

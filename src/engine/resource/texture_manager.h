@@ -50,6 +50,10 @@ namespace engine::resource {
 		TextureManager(TextureManager&&) = delete;
 		TextureManager& operator=(TextureManager&&) = delete;
 
+		// 友元类声明，允许 ResourceManager 访问私有方法
+		friend class ResourceManager;
+
+private:
 		/**
 		 * @brief 从指定文件路径载入纹理资源并存入缓存。
 		 * @param file_path 磁盘上纹理文件的完整或相对路径。

@@ -76,6 +76,10 @@ namespace engine::resource {
 		AudioManager(AudioManager&&) = delete;
 		AudioManager& operator=(AudioManager&&) = delete;
 
+		// 友元类声明，允许 ResourceManager 访问私有方法
+		friend class ResourceManager;
+
+private:
 		/**
 		 * @brief 从文件路径加载音效（Sound Effect）。
 		 * @param file_path 音效文件的路径。

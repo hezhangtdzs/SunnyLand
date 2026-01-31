@@ -1,10 +1,10 @@
 #include "up_down_behavior.h"
-#include "../transform_component.h"
-#include "../physics_component.h"
-#include "../animation_component.h"
-#include "../../object/game_object.h"
+#include "../../../engine/component/transform_component.h"
+#include "../../../engine/component/physics_component.h"
+#include "../../../engine/component/animation_component.h"
+#include "../../../engine/object/game_object.h"
 
-engine::component::UpDownBehavior::UpDownBehavior(float speed, float moveRange)
+game::component::UpDownBehavior::UpDownBehavior(float speed, float moveRange)
     : speed_(speed),
       moveRange_(moveRange),
       startY_(0.0f),
@@ -12,31 +12,31 @@ engine::component::UpDownBehavior::UpDownBehavior(float speed, float moveRange)
 {
 }
 
-void engine::component::UpDownBehavior::init(engine::object::GameObject* owner)
+void game::component::UpDownBehavior::init(engine::object::GameObject* owner)
 {
     if (owner) {
-        auto* transform = owner->getComponent<TransformComponent>();
+        auto* transform = owner->getComponent<engine::component::TransformComponent>();
         if (transform) {
             startY_ = transform->getPosition().y;
         }
-        auto* physics = owner->getComponent<PhysicsComponent>();
+        auto* physics = owner->getComponent<engine::component::PhysicsComponent>();
         if (physics) {
             physics->setUseGravity(false);
         }
     }
 }
 
-void engine::component::UpDownBehavior::update(engine::object::GameObject* owner, float /*deltaTime*/, engine::core::Context& /*context*/)
+void game::component::UpDownBehavior::update(engine::object::GameObject* owner, float /*deltaTime*/, engine::core::Context& /*context*/)
 {
     if (!owner) return;
-    
-    auto* transform = owner->getComponent<TransformComponent>();
-    auto* physics = owner->getComponent<PhysicsComponent>();
-    
+
+    auto* transform = owner->getComponent<engine::component::TransformComponent>();
+    auto* physics = owner->getComponent<engine::component::PhysicsComponent>();
+
     if (!transform || !physics) return;
-    
+
     auto position = transform->getPosition();
-    
+
     // 计算移动方向
     if (movingUp_) {
         // 如果达到上边界，或者碰到上方障碍物，则转向
@@ -49,12 +49,12 @@ void engine::component::UpDownBehavior::update(engine::object::GameObject* owner
             movingUp_ = true;
         }
     }
-    
+
     // 设置速度
     physics->velocity_.y = movingUp_ ? -speed_ : speed_;
 
     // 播放飞行动画
-    if (auto* anim = owner->getComponent<AnimationComponent>()) {
+    if (auto* anim = owner->getComponent<engine::component::AnimationComponent>()) {
         anim->playAnimation("fly");
     }
 }

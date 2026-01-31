@@ -54,3 +54,113 @@
 ## 6. 动作映射系统 (Input Mapping)
 - 键盘按键不直接对应逻辑，而是映射为 **Actions** (如 `"move_left"`, `"jump"`, `"move_up"`, `"move_down"`)。
 - 在 `assets/config.json` 中配置按键绑定。
+
+## 7. 生成器模式 (Builder Pattern)
+
+本项目使用 **生成器模式** 构建复杂的游戏对象，将对象的构建过程与表示分离，支持灵活的对象配置。
+
+### 架构组成
+
+```mermaid
+classDiagram
+    class ObjectBuilder {
+        <<abstract>>
+        +configure()* ObjectBuilder*
+        +build()* void
+        +getGameObject() unique_ptr~GameObject~
+        #buildBase() void
+        #buildTransform() void
+        #buildSprite() void
+        #buildPhysics() void
+        #buildAnimation() void
+        #buildAudio() void
+        #buildHealth() void
+    }
+
+    class GameObjectBuilder {
+        +setEnemyType(string) GameObjectBuilder*
+        +setItemType(string) GameObjectBuilder*
+        +setAsPlayer() GameObjectBuilder*
+        +autoDetectType(string) GameObjectBuilder*
+        +enhance(GameObject*) GameObjectBuilder*
+        +buildEnhancement() bool
+        -buildGameSpecific(GameObject*) void
+        -buildEnemyAI(GameObject*) void
+        -buildPlayerComponent(GameObject*) void
+        -buildItemComponents(GameObject*) void
+    }
+
+    ObjectBuilder <|-- GameObjectBuilder
+```
+
+### 核心组件
+
+#### ObjectBuilder (抽象生成器)
+- **职责**: 定义构建游戏对象的通用步骤和接口
+- **构建步骤**:
+  1. `buildBase()`: 创建 GameObject 实例并设置名称
+  2. `buildTransform()`: 解析位置、旋转、缩放信息
+  3. `buildSprite()`: 根据图块信息创建精灵
+  4. `buildPhysics()`: 根据类型创建碰撞器和物理组件
+  5. `buildAnimation()`: 解析动画 JSON 配置
+  6. `buildAudio()`: 解析音效 JSON 配置
+  7. `buildHealth()`: 根据属性设置生命值
+
+#### GameObjectBuilder (具体生成器)
+- **职责**: 实现游戏特定对象的构建逻辑
+- **扩展功能**:
+  - 敌人 AI 行为构建 (`buildEnemyAI`)
+  - 玩家组件构建 (`buildPlayerComponent`)
+  - 道具组件构建 (`buildItemComponents`)
+
+### 使用方式
+
+#### 方式一：从头构建新对象
+
+```cpp
+GameObjectBuilder builder(level_loader, context);
+auto enemy = builder
+    .configure(&object_json, &tile_json, tile_info)
+    .setEnemyType("eagle")
+    .build()
+    .getGameObject();
+```
+
+#### 方式二：增强已有对象
+
+```cpp
+GameObjectBuilder builder(level_loader, context);
+builder.autoDetectType("frog")
+       .enhance(existing_object)
+       .buildEnhancement();
+```
+
+#### 方式三：自动类型检测
+
+```cpp
+GameObjectBuilder builder(level_loader, context);
+auto game_object = builder
+    .configure(&object_json, &tile_json, tile_info)
+    .autoDetectType(object_name)  // 根据名称自动推断类型
+    .build()
+    .getGameObject();
+```
+
+### 支持的类型映射
+
+| 名称 | 类型 | 添加的组件 |
+|:---|:---|:---|
+| "eagle" | 敌人 | AIComponent + UpDownBehavior |
+| "frog" | 敌人 | AIComponent + JumpBehavior |
+| "opossum" | 敌人 | AIComponent + PatrolBehavior |
+| "player" | 玩家 | PlayerComponent + 状态机 |
+| "fruit" | 道具 | 动画播放 + "item" 标签 |
+| "gem" | 道具 | 动画播放 + "item" 标签 |
+
+### 设计优势
+
+1. **分步构建**: 将复杂对象的创建分解为多个步骤，每个步骤可以独立配置
+2. **链式调用**: 支持流畅的 API 设计，提高代码可读性
+3. **类型安全**: 通过 `unique_ptr` 管理对象所有权，避免内存泄漏
+4. **可扩展性**: 新增对象类型只需在 `GameObjectBuilder` 中添加对应的构建逻辑
+5. **复用性**: 增强模式允许为已有对象动态添加组件

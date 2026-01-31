@@ -1,13 +1,13 @@
 #pragma once
-#include "../ai_behavior.h"
+#include "../../../engine/component/ai_behavior.h"
 
-namespace engine::component {
+namespace game::component {
 
     /**
      * @class JumpBehavior
      * @brief 跳跃行为类，实现敌人的跳跃和地面移动
      */
-    class JumpBehavior final : public AIBehavior {
+    class JumpBehavior final : public engine::component::AIBehavior {
     private:
         float moveSpeed_; ///< 移动速度
         float jumpForce_; ///< 跳跃力度
@@ -36,10 +36,10 @@ namespace engine::component {
          * @param owner 拥有该行为的游戏对象
          */
         void init(engine::object::GameObject* /*owner*/) override;
-        
+
         /**
          * @brief 更新行为
-         * 
+         *
          * @param owner 拥有该行为的游戏对象
          * @param deltaTime 自上次更新以来的时间间隔
          * @param context 游戏上下文
@@ -47,4 +47,4 @@ namespace engine::component {
         void update(engine::object::GameObject* owner, float deltaTime, engine::core::Context& context) override;
     };
 
-}  // namespace engine::component
+}  // namespace game::component

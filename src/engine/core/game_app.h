@@ -5,7 +5,7 @@
  */
 
 #include <memory>
-
+#include <functional>
 // Forward declarations in global namespace
 struct SDL_Renderer;
 struct SDL_Window;
@@ -82,6 +82,8 @@ namespace engine::core {
         std::unique_ptr<engine::audio::AudioPlayer> audio_player_;
         /// 游戏状态
         std::unique_ptr<GameState> game_state_;
+        /// 初始化回调函数
+        std::function<void(engine::scene::SceneManager&)> on_init_;
 
     public:
         /**
@@ -104,6 +106,12 @@ namespace engine::core {
          * @brief 启动游戏主循环。
          */
         void run();
+        
+        /**
+         * @brief 设置初始化回调函数。
+         * @param callback 初始化回调函数，接收 SceneManager 引用。
+         */
+        void setOnInitCallback(std::function<void(engine::scene::SceneManager&)> callback);
         
     private:
         /**

@@ -89,3 +89,54 @@
 - `test_object2`：静止物体，不受重力，带 `CircleCollider(radius=16)`
 
 在 `GameScene::update()` 中会调用 `TestCollisionPairs()`，每帧遍历并打印 `PhysicsEngine::getCollisionPairs()`。
+
+## 11. 游戏状态管理 (GameState)
+
+`GameState` 类负责管理游戏的全局状态，包括游戏运行状态、窗口尺寸等信息。
+
+### 状态类型
+
+```cpp
+enum class GameStateType {
+    Title,      // 标题场景
+    Playing,    // 游戏进行中
+    Paused,     // 游戏暂停
+    GameOver,   // 游戏结束
+};
+```
+
+### 核心功能
+
+#### 状态管理
+- `getState()`: 获取当前游戏状态
+- `setState(GameStateType)`: 设置游戏状态
+- `isPlaying()`: 检查是否处于游戏进行中状态
+- `isPaused()`: 检查是否处于暂停状态
+- `isGameOver()`: 检查是否处于游戏结束状态
+
+#### 窗口管理
+- `getWindowSize()`: 获取窗口物理尺寸（像素）
+- `setWindowSize(vec2)`: 设置窗口物理尺寸
+- `getWindowLogicalSize()`: 获取窗口逻辑尺寸（用于渲染坐标系）
+- `setWindowLogicalSize(vec2)`: 设置窗口逻辑尺寸
+
+### 状态转换流程
+
+```mermaid
+stateDiagram-v2
+    [*] --> Title: 游戏启动
+    Title --> Playing: 开始游戏
+    Playing --> Paused: 按下暂停键
+    Paused --> Playing: 恢复游戏
+    Playing --> GameOver: 游戏失败/胜利
+    GameOver --> Title: 返回主菜单
+    GameOver --> Playing: 重新开始
+    Paused --> Title: 返回主菜单
+```
+
+### 使用场景
+
+1. **场景切换控制**: `SceneManager` 根据 `GameState` 决定是否处理场景更新
+2. **输入响应**: `InputManager` 根据状态决定如何处理输入（如暂停时忽略游戏输入）
+3. **UI 显示**: UI 系统根据状态显示不同的界面（暂停菜单、游戏结束画面等）
+4. **窗口管理**: 提供统一的窗口尺寸查询接口，支持不同分辨率的适配

@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <glm/vec2.hpp>
+namespace engine::core { class Config; }
 
 namespace engine::resource { class ResourceManager; }
 
@@ -22,6 +23,7 @@ namespace engine::audio {
 	private:
 		/// 资源管理器引用，用于加载和管理音频资源
 		engine::resource::ResourceManager& resource_manager_;
+		engine::core::Config& config_;
 		/// 主音量 (0.0f - 1.0f)
 		float master_volume_{ 1.0f };
 		/// 音效音量 (0.0f - 1.0f)
@@ -36,7 +38,7 @@ namespace engine::audio {
 		 * @brief 构造函数，创建一个新的音频播放器。
 		 * @param resource_manager 资源管理器引用
 		 */
-		explicit AudioPlayer(engine::resource::ResourceManager& resource_manager);
+		explicit AudioPlayer(engine::resource::ResourceManager& resource_manager, engine::core::Config& config);
 
 		/// 禁止拷贝和移动语义
 		AudioPlayer(const AudioPlayer&) = delete;

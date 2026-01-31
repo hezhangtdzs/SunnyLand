@@ -8,14 +8,15 @@ std::weak_ptr<game::data::SessionData> game::data::SessionData::instance_;
 
 game::data::SessionData::SessionData(int max_health, const std::string& initial_map_path, const std::string& save_file_path)
     : current_health_(max_health),
+      saved_health_(max_health),
       max_health_(max_health),
       current_score_(0),
-      score_confirmed_(0),
-      high_score_level1_(0),
-      high_score_level2_(0),
+      saved_score_(0),
+      high_score_(0),
       map_path_(initial_map_path),
       save_file_path_(save_file_path),
-      is_win_(false) {
+      is_win_(false),
+      should_save_data_(false) {
     spdlog::info("SessionData initialized with max health: {}, initial map: {}", max_health, initial_map_path);
 }
 
@@ -83,16 +84,16 @@ bool game::data::SessionData::updateHighScore() {
     
     // 根据当前关卡更新对应的最高分
     if (map_path_.find("level1") != std::string::npos) {
-        if (current_score_ > high_score_level1_) {
-            high_score_level1_ = current_score_;
+        if (current_score_ > high_score_) {
+            high_score_ = current_score_;
             updated = true;
-            spdlog::info("Level 1 high score updated: {}", high_score_level1_);
+            spdlog::info("High score updated: {}", high_score_);
         }
     } else if (map_path_.find("level2") != std::string::npos) {
-        if (current_score_ > high_score_level2_) {
-            high_score_level2_ = current_score_;
+        if (current_score_ > high_score_) {
+            high_score_ = current_score_;
             updated = true;
-            spdlog::info("Level 2 high score updated: {}", high_score_level2_);
+            spdlog::info("High score updated: {}", high_score_);
         }
     }
     
@@ -110,28 +111,37 @@ void game::data::SessionData::checkAndResetScore() {
         if (current_score_ > 0) {
             spdlog::info("Returning to level 1, resetting current score: {}", current_score_);
             current_score_ = 0;
-            score_confirmed_ = 0;
         }
     }
 }
 
 void game::data::SessionData::reset() {
     current_health_ = max_health_;
+    saved_health_ = max_health_;
     current_score_ = 0;
-    score_confirmed_ = 0;
+    saved_score_ = 0;
     map_path_ = "assets/maps/level1.tmj";
     is_win_ = false;
+    should_save_data_ = false;
     // 保持最高分不变
     spdlog::info("SessionData reset to initial state, high scores preserved");
 }
 
 nlohmann::json game::data::SessionData::toJson() const {
 nlohmann::json json_data;
-json_data["current_health"] = current_health_;
+// 根据should_save_data_决定是否保存生命值和分数
+if (should_save_data_) {
+    json_data["current_health"] = current_health_;
+    json_data["current_score"] = current_score_;
+    spdlog::info("Saved data - health: {}, score: {}", current_health_, current_score_);
+} else {
+    // 手动保存时不保存当前数据，使用上次保存的数据
+    json_data["current_health"] = saved_health_;
+    json_data["current_score"] = saved_score_;
+    spdlog::info("Manual save, using last saved data - health: {}, score: {}", saved_health_, saved_score_);
+}
 json_data["max_health"] = max_health_;
-json_data["current_score"] = score_confirmed_;
-json_data["high_score_level1"] = high_score_level1_;
-    json_data["high_score_level2"] = high_score_level2_;
+json_data["high_score"] = high_score_;
     json_data["map_path"] = map_path_;
     json_data["is_win"] = is_win_;
     return json_data;
@@ -139,20 +149,24 @@ json_data["high_score_level1"] = high_score_level1_;
 
 void game::data::SessionData::fromJson(const nlohmann::json& json) {
     if (json.contains("current_health")) {
-        current_health_ = json["current_health"];
+        // 加载生命值数据
+        int loaded_health = json["current_health"];
+        current_health_ = loaded_health;
+        saved_health_ = loaded_health;
+        spdlog::info("Loaded health: {}", loaded_health);
     }
     if (json.contains("max_health")) {
         max_health_ = json["max_health"];
     }
     if (json.contains("current_score")) {
-        current_score_ = json["current_score"];
-        score_confirmed_ = current_score_;
+        // 加载分数数据
+        int loaded_score = json["current_score"];
+        current_score_ = loaded_score;
+        saved_score_ = loaded_score;
+        spdlog::info("Loaded score: {}", loaded_score);
     }
-    if (json.contains("high_score_level1")) {
-        high_score_level1_ = json["high_score_level1"];
-    }
-    if (json.contains("high_score_level2")) {
-        high_score_level2_ = json["high_score_level2"];
+    if (json.contains("high_score")) {
+        high_score_ = json["high_score"];
     }
     if (json.contains("map_path")) {
         map_path_ = json["map_path"];
@@ -160,8 +174,10 @@ void game::data::SessionData::fromJson(const nlohmann::json& json) {
     if (json.contains("is_win")) {
         is_win_ = json["is_win"];
     }
-    spdlog::info("Loaded session data: {}/{}, score: {}, high scores: {}/{}. map: {}, is_win: {}", 
-                 current_health_, max_health_, current_score_, high_score_level1_, high_score_level2_, map_path_, is_win_);
+    // 加载后取消保存数据标志
+    should_save_data_ = false;
+    spdlog::info("Loaded session data: {}/{}, current score: {}, high score: {}, map: {}, is_win: {}", 
+                 current_health_, max_health_, current_score_, high_score_, map_path_, is_win_);
 }
 
 bool game::data::SessionData::save() const {

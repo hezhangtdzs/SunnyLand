@@ -61,6 +61,11 @@ void engine::core::GameApp::run()
 	close();
 }
 
+void engine::core::GameApp::setOnInitCallback(std::function<void(engine::scene::SceneManager &)> callback)
+{
+    on_init_ = std::move(callback);
+}
+
 /**
  * @brief 初始化所有游戏系统。
  * @return 初始化成功返回 true，否则返回 false。
@@ -91,11 +96,16 @@ bool engine::core::GameApp::init()
 		// 设置会话数据到场景管理器
 		scene_manager_->setSessionData(session_data);
 		
-		// 创建并推送第一个游戏场景，传入会话数据
-		auto scene = std::make_unique<game::scene::TitleScene>(
-			*context_, 
-			*scene_manager_);
-		scene_manager_->requestPushScene(std::move(scene));
+		// 调用初始化回调函数
+		if (on_init_) {
+			on_init_(*scene_manager_);
+		}
+
+		// // 创建并推送第一个游戏场景，传入会话数据
+		// auto scene = std::make_unique<game::scene::TitleScene>(
+		// 	*context_, 
+		// 	*scene_manager_);
+		// scene_manager_->requestPushScene(std::move(scene));
 		return true;
 	}
 
@@ -352,7 +362,7 @@ bool engine::core::GameApp::initAudioPlayer()
 {
 	try
 	{
-		audio_player_ = std::make_unique<engine::audio::AudioPlayer>(*resource_manager_);
+		audio_player_ = std::make_unique<engine::audio::AudioPlayer>(*resource_manager_, *config_);
 	}
 	catch (const std::exception& e)
 	{

@@ -1,13 +1,13 @@
 #pragma once
-#include "../ai_behavior.h"
+#include "../../../engine/component/ai_behavior.h"
 
-namespace engine::component {
+namespace game::component {
 
     /**
      * @class PatrolBehavior
      * @brief 巡逻行为类，实现敌人在指定范围内左右移动
      */
-    class PatrolBehavior final : public AIBehavior {
+    class PatrolBehavior final : public engine::component::AIBehavior {
     private:
         float speed_; ///< 巡逻速度
         float patrolRange_; ///< 巡逻范围
@@ -27,4 +27,4 @@ namespace engine::component {
         void update(engine::object::GameObject* owner, float deltaTime, engine::core::Context& context) override;
     };
 
-}  // namespace engine::component
+}  // namespace game::component

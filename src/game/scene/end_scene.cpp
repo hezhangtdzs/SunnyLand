@@ -78,8 +78,7 @@ void EndScene::createUI() {
 
     // 创建得分信息
     int current_score = session_data_->getCurrentScore();
-    int high_score_level1 = session_data_->getHighScoreLevel1();
-    int high_score_level2 = session_data_->getHighScoreLevel2();
+    int high_score = session_data_->getHighScore();
 
     // 当前得分
     auto score_text = std::make_unique<engine::ui::UIText>(context_, 
@@ -94,46 +93,20 @@ void EndScene::createUI() {
 
     // 最高分
     auto high_score_text = std::make_unique<engine::ui::UIText>(context_, 
-                                                              "High Scores:", 
+                                                              "High Score: " + std::to_string(high_score), 
                                                               "assets/fonts/VonwaonBitmap-16px.ttf", 
                                                               20);
     auto high_score_size = high_score_text->getSize();
     auto high_score_x = (window_size.x - high_score_size.x) / 2.0f;
     auto high_score_y = score_y + score_size.y + 15.0f;
     high_score_text->setPosition(glm::vec2(high_score_x, high_score_y));
-    ui_manager_->addElement(std::move(high_score_text));
-
-    // 第一关最高分
-    auto high_score_level1_text = std::make_unique<engine::ui::UIText>(context_, 
-                                                                     "Level 1: " + std::to_string(high_score_level1), 
-                                                                     "assets/fonts/VonwaonBitmap-16px.ttf", 
-                                                                     18);
-    auto high_score_level1_size = high_score_level1_text->getSize();
-    auto high_score_level1_x = (window_size.x - high_score_level1_size.x) / 2.0f;
-    auto high_score_level1_y = high_score_y + high_score_size.y + 5.0f;
-    high_score_level1_text->setPosition(glm::vec2(high_score_level1_x, high_score_level1_y));
-    ui_manager_->addElement(std::move(high_score_level1_text));
-
-    // 第二关最高分（减去第一关分数）
-    int level2_score = high_score_level2 - high_score_level1;
-    if (level2_score < 0) {
-        level2_score = 0;
-    }
-    auto high_score_level2_text = std::make_unique<engine::ui::UIText>(context_, 
-                                                                     "Level 2: " + std::to_string(level2_score), 
-                                                                     "assets/fonts/VonwaonBitmap-16px.ttf", 
-                                                                     18);
-    auto high_score_level2_size = high_score_level2_text->getSize();
-    auto high_score_level2_x = (window_size.x - high_score_level2_size.x) / 2.0f;
-    auto high_score_level2_y = high_score_level1_y + high_score_level1_size.y + 5.0f;
-    high_score_level2_text->setPosition(glm::vec2(high_score_level2_x, high_score_level2_y));
-    ui_manager_->addElement(std::move(high_score_level2_text));
+    ui_manager_->addElement(std::move(high_score_text));    
 
     // --- 创建按钮 --- (2个按钮，设定好大小、间距)
     float button_width = 96.0f; // 按钮稍微小一点
     float button_height = 32.0f;
     float button_spacing = 10.0f;
-    float start_y = high_score_level2_y + high_score_level2_size.y + 35.0f; 
+    float start_y = high_score_y + high_score_size.y + 35.0f; 
     float button_x = (window_size.x - (button_width * 2 + button_spacing)) / 2.0f; // 水平居中
     spdlog::debug("按钮位置 - X: {}, 起始 Y: {}", button_x, start_y);
 

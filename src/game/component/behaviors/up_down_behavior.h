@@ -1,13 +1,13 @@
 #pragma once
-#include "../ai_behavior.h"
+#include "../../../engine/component/ai_behavior.h"
 
-namespace engine::component {
+namespace game::component {
 
     /**
      * @class UpDownBehavior
      * @brief 飞行行为类，实现敌人在垂直方向上上下移动
      */
-    class UpDownBehavior final : public AIBehavior {
+    class UpDownBehavior final : public engine::component::AIBehavior {
     private:
         float speed_; ///< 飞行速度
         float moveRange_; ///< 移动范围
@@ -27,4 +27,4 @@ namespace engine::component {
         void update(engine::object::GameObject* owner, float deltaTime, engine::core::Context& context) override;
     };
 
-}  // namespace engine::component
+}  // namespace game::component

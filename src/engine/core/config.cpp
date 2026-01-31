@@ -95,8 +95,21 @@ void engine::core::Config::fromJson(const nlohmann::json& j)
 
     if (j.contains("audio") && j["audio"].is_object()) {
         const auto& audio_config = j["audio"];
+        master_volume_ = audio_config.value("master_volume", master_volume_);
+        if (master_volume_ < 0.0f || master_volume_ > 1.0f) {
+            spdlog::warn("配置警告：主音量 ({}) 必须在 0.0 - 1.0 范围内。已重置为 0.5。", master_volume_);
+            master_volume_ = 0.5f;
+        }
         music_volume_ = audio_config.value("music_volume", music_volume_);
+        if (music_volume_ < 0.0f || music_volume_ > 1.0f) {
+            spdlog::warn("配置警告：音乐音量 ({}) 必须在 0.0 - 1.0 范围内。已重置为 0.5。", music_volume_);
+            music_volume_ = 0.5f;
+        }
         sound_volume_ = audio_config.value("sound_volume", sound_volume_);
+        if (sound_volume_ < 0.0f || sound_volume_ > 1.0f) {
+            spdlog::warn("配置警告：音效音量 ({}) 必须在 0.0 - 1.0 范围内。已重置为 0.5。", sound_volume_);
+            sound_volume_ = 0.5f;
+        }
     }
 
     // 合并输入映射，而不是整个替换

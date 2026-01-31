@@ -8,9 +8,9 @@
 #include "../../engine/component/sprite_component.h"
 #include "../../engine/component/physics_component.h"
 #include "../../engine/component/ai_component.h"
-#include "../../engine/component/behaviors/patrol_behavior.h"
-#include "../../engine/component/behaviors/up_down_behavior.h"
-#include "../../engine/component/behaviors/jump_behavior.h"
+#include "../component/behaviors/patrol_behavior.h"
+#include "../component/behaviors/up_down_behavior.h"
+#include "../component/behaviors/jump_behavior.h"
 #include "../../engine/component/collider_component.h"
 #include "../../engine/component/tilelayer_component.h"
 #include "../../engine/component/health_component.h"
@@ -19,6 +19,7 @@
 #include "../../engine/component/audio_component.h"
 #include "../../engine/resource/resource_manager.h"
 #include "../data/session_data.h"
+#include "../object/game_object_builder.h"
 
 #include "../../engine/physics/collider.h"
 #include "../../engine/scene/level_loader.h"
@@ -282,52 +283,140 @@ void GameScene::updateHUD() {
     }
 
     bool GameScene::initEnemyAndItem() {
-        bool success = true;
-        for (auto& game_object : game_objects_) {
-            if (game_object->getName() == "eagle") {
-                if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
-                    std::make_unique<engine::component::UpDownBehavior>(40.0f, 80.0f)); ai_component) {
-                    spdlog::info("为Eagle添加了UpDownBehavior");
-                    /*if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
-                        ac->playAnimation("fly");
-                    }*/
-                }
-            }
-            if (game_object->getName() == "frog") {
-                auto* transform = game_object->getComponent<engine::component::TransformComponent>();
-                float start_x = transform->getPosition().x;
-                float x_max = start_x - 10.0f;
-                float x_min = x_max - 90.0f;
+        // ============================================================
+        // 生成器模式(Builder Pattern) - Director 角色实现
+        // ============================================================
+        // 角色定义：
+        // - Director(指挥者): GameScene::initEnemyAndItem()
+        //   职责：控制构建流程，决定构建什么对象、按什么顺序构建
+        //
+        // - AbstractBuilder(抽象生成器): engine::object::ObjectBuilder
+        //   职责：定义构建游戏对象的通用步骤和接口
+        //
+        // - ConcreteBuilder(具体生成器): game::object::GameObjectBuilder
+        //   职责：实现游戏特定对象的构建步骤
+        //
+        // - Product(产品): engine::object::GameObject
+        //   职责：被构建的复杂对象
+        // ============================================================
 
-                if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
-                    std::make_unique<engine::component::JumpBehavior>(x_min, x_max, 60.0f, 250.0f, 2.0f)); ai_component) {
-                    spdlog::info("为Frog添加了JumpBehavior, 范围: [{}, {}]", x_min, x_max);
-                    
-                   /* if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
-                        ac->playAnimation("idle");
-                    }*/
-                }
-            }
-            if (game_object->getName() == "opossum") {
-                if (auto* ai_component = game_object->addComponent<engine::component::AIComponent>(
-                    std::make_unique<engine::component::PatrolBehavior>(50.0f, 200.0f)); ai_component) {
-                    spdlog::info("为Opossum添加了PatrolBehavior");
-                  /*  if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
-                        ac->playAnimation("walk");
-                    }*/
-                }
-            }
-            if (game_object->getTag() == "item") {
-                if (auto* ac = game_object->getComponent<engine::component::AnimationComponent>(); ac) {
-                    ac->playAnimation("idle");
-                }
-                else {
-                    spdlog::error("Item对象缺少 AnimationComponent，无法播放动画。");
-                    success = false;
-                }
+        // 创建 ConcreteBuilder 实例
+        // Director 不需要知道具体的构建细节，只需要调用 Builder 的接口
+        engine::scene::LevelLoader level_loader;
+        game::object::GameObjectBuilder builder(level_loader, context_);
+
+        // Director 控制构建流程：遍历所有游戏对象并增强它们
+        for (auto& game_object : game_objects_) {
+            const std::string& name = game_object->getName();
+
+            // Director 决定构建什么：
+            // 1. 配置类型（通过 autoDetectType）
+            // 2. 设置目标对象（通过 enhance）
+            // 3. 执行构建（通过 buildEnhancement）
+            builder.autoDetectType(name)
+                   ->enhance(game_object.get());
+
+            // 执行增强构建
+            // ConcreteBuilder 处理具体构建细节：
+            // - 如果是敌人，添加 AIComponent 和相应的行为
+            // - 如果是玩家，添加 PlayerComponent
+            // - 如果是道具，设置标签并播放动画
+            if (!builder.buildEnhancement()) {
+                spdlog::warn("GameObjectBuilder 未能增强对象 '{}'", name);
             }
         }
-        return success;
+
+        spdlog::info("GameScene::initEnemyAndItem() 完成，共处理 {} 个游戏对象", game_objects_.size());
+        return true;
+    }
+
+    /**
+     * @brief 使用GameObjectBuilder创建游戏对象的示例方法
+     *
+     * 生成器模式(Builder Pattern)的典型用法：
+     * @code
+     * // 角色定义：
+     * // - Director(指挥者): GameScene，负责调用builder构建对象
+     * // - Builder(抽象生成器): engine::object::ObjectBuilder
+     * // - ConcreteBuilder(具体生成器): game::object::GameObjectBuilder
+     * // - Product(产品): engine::object::GameObject
+     *
+     * // 使用步骤：
+     * // 1. 创建Builder实例
+     * // 2. 通过链式调用配置对象属性
+     * // 3. 调用build()构建对象
+     * // 4. 获取构建好的对象
+     * @endcode
+     *
+     * @note 此方法展示了如何在场景中使用GameObjectBuilder，
+     *       实际游戏中可以在LevelLoader中集成使用
+     */
+    void GameScene::exampleUsageOfGameObjectBuilder() {
+        // 当前已在initEnemyAndItem()中实际使用GameObjectBuilder
+        // 以下是使用示例的详细说明：
+
+        /*
+        // ============================================================
+        // 示例1：增强已存在的游戏对象（当前initEnemyAndItem中使用的方式）
+        // ============================================================
+        // 特点：
+        // - 不需要手动调用reset，buildEnhancement()内部会自动清理状态
+        // - 使用链式调用配置和构建
+        // - 所有游戏特定逻辑（AI、动画等）都封装在Builder中
+        
+        engine::scene::LevelLoader level_loader;
+        game::object::GameObjectBuilder builder(level_loader, context_);
+
+        // 对于每个已存在的游戏对象
+        for (auto& game_object : game_objects_) {
+            // 链式调用：配置 -> 设置目标 -> 执行增强
+            builder.autoDetectType(game_object->getName())      // 自动识别类型
+                   .enhance(game_object.get())                  // 设置目标对象
+                   .buildEnhancement();                         // 执行增强（内部自动清理状态）
+        }
+
+        // ============================================================
+        // 示例2：从头创建新对象（可在LevelLoader中使用）
+        // ============================================================
+        // 特点：
+        // - build()内部自动调用reset，无需手动重置
+        // - 先构建基础组件，再构建游戏特定组件
+        
+        game::object::GameObjectBuilder builder(level_loader, context_);
+        
+        auto eagle = builder
+            .configure(&object_json, &tile_json, tile_info)     // 配置基础信息
+            .setEnemyType("eagle")                              // 设置敌人类型
+            .build()                                            // 构建对象（内部自动reset+构建）
+            .getGameObject();                                   // 获取对象
+
+        // ============================================================
+        // 示例3：链式调用构建多个对象
+        // ============================================================
+        // 特点：
+        // - 每次build()都会自动重置，可以连续构建不同对象
+        
+        auto frog = builder
+            .configure(&object_json, &tile_json, tile_info)
+            .setEnemyType("frog")
+            .build()
+            .getGameObject();
+            
+        auto player = builder
+            .configure(&object_json, &tile_json, tile_info)
+            .setAsPlayer()
+            .build()
+            .getGameObject();
+
+        // ============================================================
+        // 生成器模式的优势：
+        // 1. 分离对象的构建与表示：构建过程独立于具体组件
+        // 2. 更好的控制构建过程：可以分步骤构建复杂对象
+        // 3. 更好的扩展性：添加新类型的对象只需扩展builder
+        // 4. 代码复用：builder可以复用于不同场景
+        // 5. 自动状态管理：build/buildEnhancement自动处理reset
+        // ============================================================
+        */
     }
 
     void GameScene::handleObjectCollisions() {
@@ -354,10 +443,14 @@ void GameScene::updateHUD() {
                     spdlog::info("玩家触碰关卡切换触发器，准备加载: {}", next_level_path);
                     
                     if (session_data_) {
-                        session_data_->confirmScore();
+                        // 准备保存数据
+                        session_data_->prepareToSaveData();
+                        // 设置新的地图路径
                         session_data_->setMapPath(next_level_path);
-                        session_data_->checkAndResetScore();
+                        // 保存游戏状态
                         session_data_->save();
+                        // 取消保存数据标志
+                        session_data_->cancelSaveData();
                     }
 
                     auto next_scene = std::make_unique<GameScene>("GameScene", context_, scene_manager_, session_data_, next_level_path);
@@ -531,7 +624,7 @@ void GameScene::updateHUD() {
                     
                     // 保存当前状态（包含更新后的路径）
                     if (session_data_) {
-                        session_data_->confirmScore();
+                        // 不再确认分数，保持累积
                         session_data_->setMapPath(next_level_path);
                         // 检查是否需要重置分数
                         session_data_->checkAndResetScore();

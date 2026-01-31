@@ -96,6 +96,10 @@ namespace engine::resource {
 		FontManager(FontManager&&) = delete;
 		FontManager& operator=(FontManager&&) = delete;
 
+		// 友元类声明，允许 ResourceManager 访问私有方法
+		friend class ResourceManager;
+
+private:
 		/**
 		 * @brief 从文件路径加载指定点大小的字体。
 		 * @param file_path 字体文件的完整路径。
