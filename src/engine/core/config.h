@@ -49,6 +49,7 @@ namespace engine::core {
             {"jump", {"J", "Space"}},
             {"attack", {"K", "MouseLeft"}},
             {"pause", {"P", "Escape"}},
+            {"switch_player", {"Tab"}},
             // 可以继续添加更多默认动作
         };
 

@@ -1,21 +1,24 @@
 #pragma once
+
 #include "player_state.h"
 
-namespace game::component::state {
+namespace game::component::state
+{
 	/**
 	 * @brief 玩家死亡状态。
-	 *
-	 * 在此状态下，玩家将停止更新物理交互，播放死亡动画并准备从场景中移除。
+	 * @details 死亡状态下禁止所有动作
 	 */
-	class DeadState : public PlayerState {
+	class DeadState final : public PlayerState {
 	public:
-		explicit DeadState(game::component::PlayerComponent* player_component)
+		DeadState(PlayerComponent* player_component)
 			: PlayerState(player_component) {}
+		~DeadState() override = default;
 
-	private:
+		// 死亡状态下禁止所有动作，使用基类默认实现（返回 nullptr）
+
+	protected:
 		void enter() override;
 		void exit() override;
-		std::unique_ptr<PlayerState> handleInput(engine::core::Context& context) override;
 		std::unique_ptr<PlayerState> update(float delta_time, engine::core::Context& context) override;
 	};
 }

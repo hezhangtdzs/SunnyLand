@@ -21,6 +21,16 @@ sequenceDiagram
             GO->>Comp: update(dt, context)
             Note over Comp,SD: 组件可在 update 内通过 SessionData 更新游戏状态
             Comp-->>SD: update current_health, current_score, etc.
+            
+            alt PlayerComponent 更新
+                Comp->>Comp: handleInput(context)
+                Note over Comp: 命令模式：输入处理与动作执行解耦
+                Comp->>Input: isActionDown("move_left")
+                Input-->>Comp: true
+                Comp->>State: moveLeft(context)
+                State-->>Comp: return new WalkState()
+                Comp->>Comp: changeState(new_state)
+            end
         end
         Note over Comp,AP: 组件可在 update 内通过 Context.getAudioPlayer() 触发音效播放
         

@@ -135,20 +135,20 @@ namespace game::object {
         GameObjectBuilder* setAsPlayer();
 
         /**
-         * @brief 从对象名称自动推断类型
+         * @brief 从对象自动推断类型
          *
-         * 根据对象名称自动设置相应的类型配置：
+         * 根据对象名称和标签自动设置相应的类型配置：
          * - "eagle" -> enemy_type = "eagle"
          * - "frog" -> enemy_type = "frog"
          * - "opossum" -> enemy_type = "opossum"
-         * - "player" -> is_player = true
+         * - tag == "player" -> is_player = true（支持多个玩家对象如 player, player2）
          * - "fruit" -> item_type = "fruit"
          * - "gem" -> item_type = "gem"
          *
-         * @param name 对象名称
+         * @param game_object 游戏对象指针
          * @return this指针，支持链式调用
          */
-        GameObjectBuilder* autoDetectType(const std::string& name);
+        GameObjectBuilder* autoDetectType(engine::object::GameObject* game_object);
 
         /**
          * @brief 重置生成器状态

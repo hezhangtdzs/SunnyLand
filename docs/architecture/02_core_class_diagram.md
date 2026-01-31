@@ -289,7 +289,14 @@ classDiagram
         -coyote_timer_ : float
         -coyote_grace_duration_ : float
         +setState(unique_ptr~PlayerState~)
-        +processMovementInput(Context&, float) : bool
+        +handleInput(Context&)
+        +moveLeft(Context&) : bool
+        +moveRight(Context&) : bool
+        +jump(Context&) : bool
+        +attack(Context&) : bool
+        +climbUp(Context&) : bool
+        +climbDown(Context&) : bool
+        +stopMove(Context&) : bool
         +takeDamage(int, Context&) : bool
         +isOverLadder(Context&) : bool
         +isDead() : bool
@@ -305,59 +312,72 @@ classDiagram
     class PlayerState {
         <<abstract>>
         #player_component_ : PlayerComponent*
-        +enter()*
-        +exit()*
-        +handleInput(Context&)*
-        +update(dt, Context&)*
+        +enter(Context&)*
+        +exit(Context&)*
+        +update(dt, Context&)* : unique_ptr~PlayerState~
+        +moveLeft(Context&)* : unique_ptr~PlayerState~
+        +moveRight(Context&)* : unique_ptr~PlayerState~
+        +jump(Context&)* : unique_ptr~PlayerState~
+        +attack(Context&)* : unique_ptr~PlayerState~
+        +climbUp(Context&)* : unique_ptr~PlayerState~
+        +climbDown(Context&)* : unique_ptr~PlayerState~
+        +stopMove(Context&)* : unique_ptr~PlayerState~
     }
 
     class IdleState {
-        +enter()
-        +exit()
-        +handleInput()
-        +update()
+        +enter(Context&)
+        +exit(Context&)
+        +update(dt, Context&) : unique_ptr~PlayerState~
+        +moveLeft(Context&) : unique_ptr~PlayerState~
+        +moveRight(Context&) : unique_ptr~PlayerState~
+        +jump(Context&) : unique_ptr~PlayerState~
+        +climbUp(Context&) : unique_ptr~PlayerState~
     }
 
     class WalkState {
-        +enter()
-        +exit()
-        +handleInput()
-        +update()
+        +enter(Context&)
+        +exit(Context&)
+        +update(dt, Context&) : unique_ptr~PlayerState~
+        +stopMove(Context&) : unique_ptr~PlayerState~
+        +jump(Context&) : unique_ptr~PlayerState~
     }
 
     class JumpState {
-        +enter()
-        +exit()
-        +handleInput()
-        +update()
+        +enter(Context&)
+        +exit(Context&)
+        +update(dt, Context&) : unique_ptr~PlayerState~
+        +moveLeft(Context&) : unique_ptr~PlayerState~
+        +moveRight(Context&) : unique_ptr~PlayerState~
     }
 
     class FallState {
-        +enter()
-        +exit()
-        +handleInput()
-        +update()
+        +enter(Context&)
+        +exit(Context&)
+        +update(dt, Context&) : unique_ptr~PlayerState~
+        +moveLeft(Context&) : unique_ptr~PlayerState~
+        +moveRight(Context&) : unique_ptr~PlayerState~
+        +climbUp(Context&) : unique_ptr~PlayerState~
     }
 
     class HurtState {
-        +enter()
-        +exit()
-        +handleInput()
-        +update()
+        +enter(Context&)
+        +exit(Context&)
+        +update(dt, Context&) : unique_ptr~PlayerState~
     }
 
     class DeadState {
-        +enter()
-        +exit()
-        +handleInput()
-        +update()
+        +enter(Context&)
+        +exit(Context&)
+        +update(dt, Context&) : unique_ptr~PlayerState~
     }
 
     class ClimbState {
-        +enter()
-        +exit()
-        +handleInput()
-        +update()
+        +enter(Context&)
+        +exit(Context&)
+        +update(dt, Context&) : unique_ptr~PlayerState~
+        +climbUp(Context&) : unique_ptr~PlayerState~
+        +climbDown(Context&) : unique_ptr~PlayerState~
+        +stopMove(Context&) : unique_ptr~PlayerState~
     }
 
     class HealthComponent {

@@ -2,6 +2,7 @@
 #include "../../engine/scene/scene.h"
 #include <glm/glm.hpp>
 #include <memory>
+#include "../command/command_mapper.h"
 
 // 前置声明
 namespace engine::object {
@@ -18,6 +19,10 @@ namespace game::data {
     class SessionData;
 }
 
+namespace game::component {
+    class PlayerComponent;
+}
+
 namespace game::scene {
 
     /**
@@ -25,6 +30,9 @@ namespace game::scene {
      */
     class GameScene final : public engine::scene::Scene {
 		engine::object::GameObject* player_{ nullptr }; ///< 测试用的游戏对象指针
+        game::component::PlayerComponent* player_component_{ nullptr }; ///< 玩家组件指针
+        engine::object::GameObject* current_controlled_player_{ nullptr }; ///< 当前被控制的玩家对象
+        std::unique_ptr<game::command::CommandMapper> command_mapper_; ///< 命令映射器
         std::string level_path_;                         ///< 当前关卡的文件路径
         std::shared_ptr<game::data::SessionData> session_data_; ///< 共享游戏数据
         
@@ -49,6 +57,10 @@ namespace game::scene {
 		[[nodiscard]] bool initEnemyAndItem();		///< @brief 初始化敌人和道具
         void initHUD();                              ///< @brief 初始化HUD界面
         void updateHUD();                            ///< @brief 更新HUD显示
+
+        void initCommandMapper();                    ///< @brief 初始化命令映射器
+        void switchPlayer();                         ///< @brief 切换控制的玩家对象（双人模式）
+        void rebindCommandMapper(game::component::PlayerComponent* player_component); ///< @brief 重新绑定命令映射器到新的玩家
 
         void handleObjectCollisions();              ///< @brief 处理游戏对象间的碰撞逻辑（从PhysicsEngine获取信息）
         void PlayerVSEnemyCollision(engine::object::GameObject* player, engine::object::GameObject* enemy);  ///< @brief 玩家与敌人碰撞处理

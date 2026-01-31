@@ -98,6 +98,9 @@ add_executable(${TARGET}
 
     src/game/component/player_component.cpp
 
+    src/game/command/player_commands.cpp
+    src/game/command/command_mapper.cpp
+
     src/game/component/state/climb_state.cpp
     src/game/component/state/dead_state.cpp
     src/game/component/state/Fall_state.cpp

@@ -31,7 +31,18 @@
 - **PlayerState**: 管理玩家各种状态（Idle、Walk、Jump、Fall 等）
 - **UIState**: 管理 UI 元素交互状态（Normal、Hover、Pressed）
 
-### 4. 策略模式 (Strategy Pattern)
+### 4. 命令模式 (Command Pattern)
+用于解耦输入处理与动作执行，实现玩家动作的灵活控制：
+- **PlayerComponent**: 接收输入并调用动作接口
+- **PlayerState**: 各状态类实现具体的动作响应逻辑
+- **动作接口**: `moveLeft()`, `moveRight()`, `jump()`, `attack()`, `climbUp()`, `climbDown()`, `stopMove()`
+
+优势：
+- 输入处理与动作执行解耦
+- 状态类自主决定如何处理特定动作
+- 易于扩展新动作和状态
+
+### 5. 策略模式 (Strategy Pattern)
 用于实现可替换的 AI 行为：
 - **AIBehavior**: 定义 AI 行为接口
 - **PatrolBehavior / UpDownBehavior / JumpBehavior**: 具体 AI 策略实现

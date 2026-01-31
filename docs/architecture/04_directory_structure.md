@@ -92,7 +92,6 @@ src/
         ├── session_data.h/cpp
 
 docs/                   # 项目文档
-├── PROJECT_STRUCTURE.md # 本文档：结构、调用流程与约定
 └── architecture/        # 架构文档
     ├── 01_project_overview.md
     ├── 02_core_class_diagram.md

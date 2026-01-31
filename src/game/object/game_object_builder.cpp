@@ -74,7 +74,14 @@ namespace game::object {
         return this;
     }
 
-    GameObjectBuilder* GameObjectBuilder::autoDetectType(const std::string& name) {
+    GameObjectBuilder* GameObjectBuilder::autoDetectType(engine::object::GameObject* game_object) {
+        if (!game_object) {
+            return this;
+        }
+
+        const std::string& name = game_object->getName();
+        const std::string& tag = game_object->getTag();
+
         // 根据名称自动推断对象类型
         if (name == "eagle") {
             enemy_type_ = "eagle";
@@ -82,16 +89,19 @@ namespace game::object {
             enemy_type_ = "frog";
         } else if (name == "opossum") {
             enemy_type_ = "opossum";
-        } else if (name == "player") {
-            is_player_ = true;
         } else if (name == "fruit") {
             item_type_ = "fruit";
         } else if (name == "gem") {
             item_type_ = "gem";
         }
 
-        spdlog::debug("GameObjectBuilder 自动推断类型: name={}, enemy={}, player={}, item={}",
-                      name, enemy_type_.value_or("none"), is_player_, item_type_.value_or("none"));
+        // 根据 tag 识别玩家（支持多个玩家对象如 player, player2 等）
+        if (tag == "player") {
+            is_player_ = true;
+        }
+
+        spdlog::debug("GameObjectBuilder 自动推断类型: name={}, tag={}, enemy={}, player={}, item={}",
+                      name, tag, enemy_type_.value_or("none"), is_player_, item_type_.value_or("none"));
 
         return this;
     }

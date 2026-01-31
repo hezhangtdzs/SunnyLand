@@ -122,6 +122,12 @@
                  "height":32,
                  "id":1,
                  "name":"player",
+                 "properties":[
+                        {
+                         "name":"tag",
+                         "type":"string",
+                         "value":"player"
+                        }],
                  "rotation":0,
                  "type":"",
                  "visible":true,
@@ -325,6 +331,24 @@
                  "width":0,
                  "x":87,
                  "y":43
+                }, 
+                {
+                 "gid":608,
+                 "height":32,
+                 "id":20,
+                 "name":"player2",
+                 "properties":[
+                        {
+                         "name":"tag",
+                         "type":"string",
+                         "value":"player"
+                        }],
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":32,
+                 "x":240.5,
+                 "y":350
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -345,7 +369,7 @@
          "y":0
         }],
  "nextlayerid":7,
- "nextobjectid":20,
+ "nextobjectid":22,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.2",

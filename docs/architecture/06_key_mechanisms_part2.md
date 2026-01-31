@@ -90,7 +90,129 @@
 
 在 `GameScene::update()` 中会调用 `TestCollisionPairs()`，每帧遍历并打印 `PhysicsEngine::getCollisionPairs()`。
 
-## 11. 游戏状态管理 (GameState)
+## 11. 玩家状态系统详解 (Player State System)
+
+玩家状态系统采用 **状态模式** 与 **命令模式** 结合的设计，实现灵活的玩家行为控制。
+
+### 状态转换图
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle: 初始化
+    Idle --> Walk: moveLeft/moveRight
+    Walk --> Idle: stopMove
+    Idle --> Jump: jump
+    Walk --> Jump: jump
+    Jump --> Fall: 速度向下
+    Fall --> Idle: 落地
+    Idle --> Climb: climbUp (在梯子旁)
+    Walk --> Climb: climbUp (在梯子旁)
+    Fall --> Climb: climbUp (在梯子旁)
+    Climb --> Idle: 离开梯子
+    Idle --> Hurt: 受到伤害
+    Walk --> Hurt: 受到伤害
+    Jump --> Hurt: 受到伤害
+    Fall --> Hurt: 受到伤害
+    Climb --> Hurt: 受到伤害
+    Hurt --> Idle: 受伤结束
+    Hurt --> Dead: 生命值归零
+    Idle --> Dead: 生命值归零
+    Walk --> Dead: 生命值归零
+    Jump --> Dead: 生命值归零
+    Fall --> Dead: 掉落深渊
+    Dead --> [*]: 游戏结束
+```
+
+### 各状态行为
+
+#### IdleState (待机状态)
+- **进入动作**: 播放待机动画，重置水平速度
+- **支持动作**:
+  - `moveLeft/moveRight`: 切换到 WalkState
+  - `jump`: 切换到 JumpState
+  - `climbUp`: 如果在梯子旁，切换到 ClimbState
+- **更新逻辑**: 检查是否处于地面，检测掉落
+
+#### WalkState (行走状态)
+- **进入动作**: 播放行走动画
+- **支持动作**:
+  - `stopMove`: 切换到 IdleState
+  - `jump`: 切换到 JumpState
+- **更新逻辑**: 应用水平移动速度，检测掉落
+
+#### JumpState (跳跃状态)
+- **进入动作**: 应用跳跃冲量，播放跳跃动画
+- **支持动作**:
+  - `moveLeft/moveRight`: 空中水平移动控制
+- **更新逻辑**: 检测速度方向，速度向下时切换到 FallState
+
+#### FallState (下落状态)
+- **进入动作**: 播放下落动画
+- **支持动作**:
+  - `moveLeft/moveRight`: 空中水平移动控制
+  - `climbUp`: 如果在梯子旁，切换到 ClimbState
+- **更新逻辑**: 检测落地，检测梯子
+
+#### ClimbState (攀爬状态)
+- **进入动作**: 播放攀爬动画，禁用重力
+- **支持动作**:
+  - `climbUp/climbDown`: 垂直移动
+  - `stopMove`: 停止攀爬动画
+- **更新逻辑**: 检测是否离开梯子，离开时切换到 IdleState
+
+#### HurtState (受伤状态)
+- **进入动作**: 播放受伤动画，应用击退力
+- **支持动作**: 限制大部分动作
+- **更新逻辑**: 倒计时受伤时间，结束后切换到 IdleState
+
+#### DeadState (死亡状态)
+- **进入动作**: 播放死亡动画
+- **支持动作**: 不响应任何输入
+- **更新逻辑**: 触发游戏结束
+
+### 动作接口实现
+
+每个状态类通过实现动作接口来控制状态转换：
+
+```cpp
+// IdleState 示例
+std::unique_ptr<PlayerState> IdleState::moveLeft(engine::core::Context& context) {
+    return std::make_unique<WalkState>(player_);
+}
+
+std::unique_ptr<PlayerState> IdleState::jump(engine::core::Context& context) {
+    if (auto* physics = player_.getPhysicsComponent()) {
+        physics->addVelocity(glm::vec2(0.0f, -jump_force));
+    }
+    return std::make_unique<JumpState>(player_);
+}
+
+// 不支持的动作返回 nullptr
+std::unique_ptr<PlayerState> IdleState::attack(engine::core::Context& context) {
+    return nullptr;  // 待机状态不处理攻击
+}
+```
+
+### 状态切换机制
+
+```cpp
+void PlayerComponent::changeState(std::unique_ptr<PlayerState> new_state) {
+    if (!new_state || new_state.get() == state_.get()) {
+        return;
+    }
+    
+    // 退出当前状态
+    state_->exit(context_);
+    
+    // 切换状态
+    state_ = std::move(new_state);
+    
+    // 进入新状态
+    state_->enter(context_);
+}
+```
+
+## 12. 游戏状态管理 (GameState)
 
 `GameState` 类负责管理游戏的全局状态，包括游戏运行状态、窗口尺寸等信息。
 

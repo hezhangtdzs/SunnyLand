@@ -20,6 +20,7 @@
 #include "../../engine/resource/resource_manager.h"
 #include "../data/session_data.h"
 #include "../object/game_object_builder.h"
+#include "../command/player_commands.h"
 
 #include "../../engine/physics/collider.h"
 #include "../../engine/scene/level_loader.h"
@@ -122,10 +123,50 @@ namespace game::scene {
     bool GameScene::handleInput() {
         Scene::handleInput();
 
-        if (context_.getInputManager().isActionPressed("pause")) {
+        auto& input_manager = context_.getInputManager();
+
+        // 处理暂停
+        if (input_manager.isActionPressed("pause")) {
             spdlog::debug("在GameScene中检测到暂停动作，正在推送MenuScene。");
             scene_manager_.requestPushScene(std::make_unique<MenuScene>(context_, scene_manager_, session_data_));
+            return true;
         }
+
+        // 命令模式：输入处理与动作执行解耦
+        // 处理移动输入
+        if (input_manager.isActionDown("move_left")) {
+            command_mapper_->execute("move_left", context_);
+        }
+        else if (input_manager.isActionDown("move_right")) {
+            command_mapper_->execute("move_right", context_);
+        }
+        else {
+            command_mapper_->execute("stop_move", context_);
+        }
+
+        // 处理跳跃输入（按下触发）
+        if (input_manager.isActionPressed("jump")) {
+            command_mapper_->execute("jump", context_);
+        }
+
+        // 处理攀爬输入
+        if (input_manager.isActionDown("move_up")) {
+            command_mapper_->execute("climb_up", context_);
+        }
+        else if (input_manager.isActionDown("move_down")) {
+            command_mapper_->execute("climb_down", context_);
+        }
+
+        // 处理攻击输入（按下触发）
+        if (input_manager.isActionPressed("attack")) {
+            command_mapper_->execute("attack", context_);
+        }
+
+        // 处理切换玩家输入（按下触发）
+        if (input_manager.isActionPressed("switch_player")) {
+            switchPlayer();
+        }
+
         return true;
     }
 
@@ -246,8 +287,8 @@ void GameScene::updateHUD() {
         }
 
         // 添加PlayerComponent到玩家对象
-        auto* player_component = player_->addComponent<game::component::PlayerComponent>();
-        if (!player_component) {
+        player_component_ = player_->addComponent<game::component::PlayerComponent>();
+        if (!player_component_) {
             spdlog::error("无法添加 PlayerComponent 到玩家对象");
             return false;
         }
@@ -277,9 +318,91 @@ void GameScene::updateHUD() {
 			spdlog::trace("玩家音频组件已由关卡数据加载。");
 		}
 
+        // 初始化命令映射器（命令模式）
+        initCommandMapper();
+
         spdlog::trace("Player初始化完成。");
 
         return true;
+    }
+
+    void GameScene::initCommandMapper() {
+        command_mapper_ = std::make_unique<game::command::CommandMapper>();
+
+        if (!player_component_) {
+            spdlog::error("无法初始化命令映射器：玩家组件为空");
+            return;
+        }
+
+        // 绑定动作到命令
+        command_mapper_->bind("move_left", std::make_unique<game::command::MoveLeftCommand>(player_component_));
+        command_mapper_->bind("move_right", std::make_unique<game::command::MoveRightCommand>(player_component_));
+        command_mapper_->bind("jump", std::make_unique<game::command::JumpCommand>(player_component_));
+        command_mapper_->bind("attack", std::make_unique<game::command::AttackCommand>(player_component_));
+        command_mapper_->bind("climb_up", std::make_unique<game::command::ClimbUpCommand>(player_component_));
+        command_mapper_->bind("climb_down", std::make_unique<game::command::ClimbDownCommand>(player_component_));
+        command_mapper_->bind("stop_move", std::make_unique<game::command::StopMoveCommand>(player_component_));
+
+        spdlog::info("命令映射器初始化完成，已绑定 7 个动作命令");
+    }
+
+    void GameScene::switchPlayer() {
+        spdlog::info("切换操控的玩家对象");
+
+        // 查找第二个玩家对象
+        auto* player2 = findGameObjectByName("player2");
+        if (!player2) {
+            spdlog::warn("未找到 player2 对象，无法切换玩家");
+            return;
+        }
+
+        // 初始化当前控制玩家（第一次切换时）
+        if (!current_controlled_player_) {
+            current_controlled_player_ = player_;
+        }
+
+        // 切换玩家
+        current_controlled_player_ = (current_controlled_player_ == player_) ? player2 : player_;
+        spdlog::info("当前控制的玩家: {}", current_controlled_player_->getName());
+
+        // 切换相机跟随目标
+        auto* transform = current_controlled_player_->getComponent<engine::component::TransformComponent>();
+        if (transform) {
+            context_.getCamera().setTarget(transform);
+            spdlog::info("相机已切换到跟随 {}", current_controlled_player_->getName());
+        }
+
+        // 重新绑定命令到新的玩家组件
+        auto* new_player_component = current_controlled_player_->getComponent<game::component::PlayerComponent>();
+        if (new_player_component) {
+            rebindCommandMapper(new_player_component);
+        } else {
+            spdlog::error("{} 没有 PlayerComponent", current_controlled_player_->getName());
+        }
+    }
+
+    void GameScene::rebindCommandMapper(game::component::PlayerComponent* player_component) {
+        if (!player_component) {
+            spdlog::error("无法重新绑定命令映射器：玩家组件为空");
+            return;
+        }
+
+        // 清除现有命令
+        command_mapper_->clear();
+
+        // 重新绑定所有命令到新的玩家组件
+        command_mapper_->bind("move_left", std::make_unique<game::command::MoveLeftCommand>(player_component));
+        command_mapper_->bind("move_right", std::make_unique<game::command::MoveRightCommand>(player_component));
+        command_mapper_->bind("jump", std::make_unique<game::command::JumpCommand>(player_component));
+        command_mapper_->bind("attack", std::make_unique<game::command::AttackCommand>(player_component));
+        command_mapper_->bind("climb_up", std::make_unique<game::command::ClimbUpCommand>(player_component));
+        command_mapper_->bind("climb_down", std::make_unique<game::command::ClimbDownCommand>(player_component));
+        command_mapper_->bind("stop_move", std::make_unique<game::command::StopMoveCommand>(player_component));
+
+        // 更新当前玩家组件指针
+        player_component_ = player_component;
+
+        spdlog::info("命令映射器已重新绑定到新的玩家组件");
     }
 
     bool GameScene::initEnemyAndItem() {
@@ -313,7 +436,7 @@ void GameScene::updateHUD() {
             // 1. 配置类型（通过 autoDetectType）
             // 2. 设置目标对象（通过 enhance）
             // 3. 执行构建（通过 buildEnhancement）
-            builder.autoDetectType(name)
+            builder.autoDetectType(game_object.get())
                    ->enhance(game_object.get());
 
             // 执行增强构建
@@ -428,7 +551,7 @@ void GameScene::updateHUD() {
 
             // 处理关卡切换触发器
             auto checkLevelSwitch = [&](engine::object::GameObject* p, engine::object::GameObject* trigger) {
-                if (p->getName() == "player" && (trigger->getTag() == "next_level" || trigger->getName() == "win")) {
+                if (p->getTag() == "player" && (trigger->getTag() == "next_level" || trigger->getName() == "win")) {
                     if (trigger->getName() == "win") {
                         spdlog::info("恭喜！你赢了！");
                         if (session_data_) {
@@ -465,24 +588,24 @@ void GameScene::updateHUD() {
             }
 
             // 处理玩家与敌人的碰撞
-            if (obj1->getName() == "player" && obj2->getTag() == "enemy") {
+            if (obj1->getTag() == "player" && obj2->getTag() == "enemy") {
                 PlayerVSEnemyCollision(obj1, obj2);
             }
-            else if (obj2->getName() == "player" && obj1->getTag() == "enemy") {
+            else if (obj2->getTag() == "player" && obj1->getTag() == "enemy") {
                 PlayerVSEnemyCollision(obj2, obj1);
             }
             // 处理玩家与道具的碰撞
-            else if (obj1->getName() == "player" && obj2->getTag() == "item") {
+            else if (obj1->getTag() == "player" && obj2->getTag() == "item") {
                 PlayerVSItemCollision(obj1, obj2);
             }
-            else if (obj2->getName() == "player" && obj1->getTag() == "item") {
+            else if (obj2->getTag() == "player" && obj1->getTag() == "item") {
                 PlayerVSItemCollision(obj2, obj1);
             }
             // 处理玩家与危险物品（如尖刺对象）的碰撞
-            else if (obj1->getName() == "player" && obj2->getTag() == "hazard") {
+            else if (obj1->getTag() == "player" && obj2->getTag() == "hazard") {
                 processHazardDamage(obj1);
             }
-            else if (obj2->getName() == "player" && obj1->getTag() == "hazard") {
+            else if (obj2->getTag() == "player" && obj1->getTag() == "hazard") {
                 processHazardDamage(obj2);
             }
         }
@@ -511,7 +634,7 @@ void GameScene::updateHUD() {
 
         // 踩踏判断成功，敌人受伤
         if (is_falling && is_above) {
-            spdlog::info("玩家 {} 踩踏了敌人 {}", player->getName(), enemy->getName());
+            spdlog::info("玩家 {} 踩踏了敌人 {}", player->getTag(), enemy->getTag());
 			if (auto* player_audio = player->getComponent<engine::component::AudioComponent>()) {
 				player_audio->playSound("stomp", context_);
 			}
@@ -603,13 +726,13 @@ void GameScene::updateHUD() {
             
             if (tile_type == engine::component::TileType::HAZARD) {
                 // 如果是玩家碰到了危险瓦片，就受伤
-                if (obj->getName() == "player") {
+                if (obj->getTag() == "player") {
                     processHazardDamage(obj);
                 }
             }
             else if (tile_type == engine::component::TileType::LEVEL_EXIT) {
                 // 如果是玩家碰到了关卡出口，进入下一关
-                if (obj->getName() == "player") {
+                if (obj->getTag() == "player") {
                     spdlog::info("玩家到达关卡出口，准备进入下一关");
                     
                     // 确定下一关的路径

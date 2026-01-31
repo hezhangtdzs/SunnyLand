@@ -10,6 +10,7 @@ namespace game::component {
 namespace game::component::state {
 	/**
 	 * @brief 玩家状态基类，定义了状态机的基础接口。
+	 * @details 使用命令模式解耦输入检测和动作执行
 	 */
 	class PlayerState {
 		friend class game::component::PlayerComponent;
@@ -33,16 +34,60 @@ namespace game::component::state {
 		 */
 		void playAnimation(const std::string& animation_name);
 
-	protected:
-		virtual void enter() = 0; ///< 进入该状态时的初始化逻辑
-		virtual void exit() = 0;  ///< 退出该状态时的清理逻辑
+		// ========== 动作接口（供PlayerComponent调用） ==========
 
 		/**
-		 * @brief 处理状态相关的输入
+		 * @brief 处理向左移动请求
 		 * @param context 引擎上下文
 		 * @return 返回新状态指针，若不发生跳转则返回 nullptr
 		 */
-		virtual std::unique_ptr<PlayerState> handleInput(engine::core::Context& context) = 0;
+		virtual std::unique_ptr<PlayerState> moveLeft(engine::core::Context& context) { return nullptr; }
+
+		/**
+		 * @brief 处理向右移动请求
+		 * @param context 引擎上下文
+		 * @return 返回新状态指针，若不发生跳转则返回 nullptr
+		 */
+		virtual std::unique_ptr<PlayerState> moveRight(engine::core::Context& context) { return nullptr; }
+
+		/**
+		 * @brief 处理跳跃请求
+		 * @param context 引擎上下文
+		 * @return 返回新状态指针，若不发生跳转则返回 nullptr
+		 */
+		virtual std::unique_ptr<PlayerState> jump(engine::core::Context& context) { return nullptr; }
+
+		/**
+		 * @brief 处理攻击请求
+		 * @param context 引擎上下文
+		 * @return 返回新状态指针，若不发生跳转则返回 nullptr
+		 */
+		virtual std::unique_ptr<PlayerState> attack(engine::core::Context& context) { return nullptr; }
+
+		/**
+		 * @brief 处理向上攀爬请求
+		 * @param context 引擎上下文
+		 * @return 返回新状态指针，若不发生跳转则返回 nullptr
+		 */
+		virtual std::unique_ptr<PlayerState> climbUp(engine::core::Context& context) { return nullptr; }
+
+		/**
+		 * @brief 处理向下攀爬请求
+		 * @param context 引擎上下文
+		 * @return 返回新状态指针，若不发生跳转则返回 nullptr
+		 */
+		virtual std::unique_ptr<PlayerState> climbDown(engine::core::Context& context) { return nullptr; }
+
+		/**
+		 * @brief 处理停止移动请求
+		 * @param context 引擎上下文
+		 * @return 返回新状态指针，若不发生跳转则返回 nullptr
+		 */
+		virtual std::unique_ptr<PlayerState> stopMove(engine::core::Context& context) { return nullptr; }
+
+	protected:
+		virtual void enter() = 0; ///< 进入该状态时的初始化逻辑
+		virtual void exit() = 0;  ///< 退出该状态时的清理逻辑
 
 		/**
 		 * @brief 更新状态逻辑

@@ -1,7 +1,8 @@
 #pragma once
 #include "../../engine/object/game_object.h"
-#include<memory>
+#include <memory>
 #include "state/player_state.h"
+
 namespace engine::component {
 	class TransformComponent;
 	class SpriteComponent;
@@ -10,6 +11,7 @@ namespace engine::component {
 	class HealthComponent;
 	class AudioComponent;
 }
+
 namespace game::component
 {
 	namespace state
@@ -18,6 +20,7 @@ namespace game::component
 	}
 	/**
 	 * @brief 玩家组件，负责玩家的状态管理、物理交互和动画同步。
+	 * @details 使用命令模式解耦输入处理和动作执行
 	 */
 	class PlayerComponent : public engine::component::Component {
 		friend class engine::object::GameObject;
@@ -39,9 +42,10 @@ namespace game::component
 		float stunned_duration_ = 0.4f;                                   ///< 受伤僵直时长
 		float coyote_timer_ = 0.0f;                                       ///< 土狼时间计时器
 		float coyote_grace_duration_ = 0.12f;                                 ///< 土狼时间宽限时长
+
 	public:
-		PlayerComponent()=default;
-		~PlayerComponent()=default;
+		PlayerComponent();
+		~PlayerComponent() override = default;
 		PlayerComponent(const PlayerComponent&) = delete;
 		PlayerComponent& operator=(const PlayerComponent&) = delete;
 		PlayerComponent(PlayerComponent&&) = delete;
@@ -92,10 +96,53 @@ namespace game::component
 		 * @return bool 如果有移动输入（Left 或 Right 按下）则返回 true。
 		 */
 		bool processMovementInput(engine::core::Context& context, float speed_scale = 1.0f);
+
+		// ========== 动作接口（供命令模式调用） ==========
+
+		/**
+		 * @brief 向左移动
+		 * @param context 引擎上下文
+		 */
+		void moveLeft(engine::core::Context& context);
+
+		/**
+		 * @brief 向右移动
+		 * @param context 引擎上下文
+		 */
+		void moveRight(engine::core::Context& context);
+
+		/**
+		 * @brief 跳跃
+		 * @param context 引擎上下文
+		 */
+		void jump(engine::core::Context& context);
+
+		/**
+		 * @brief 攻击
+		 * @param context 引擎上下文
+		 */
+		void attack(engine::core::Context& context);
+
+		/**
+		 * @brief 向上攀爬
+		 * @param context 引擎上下文
+		 */
+		void climbUp(engine::core::Context& context);
+
+		/**
+		 * @brief 向下攀爬
+		 * @param context 引擎上下文
+		 */
+		void climbDown(engine::core::Context& context);
+
+		/**
+		 * @brief 停止移动
+		 * @param context 引擎上下文
+		 */
+		void stopMove(engine::core::Context& context);
+
 	private:
 		void init() override;                                                  ///< 初始化组件
-		void handleInput(engine::core::Context& context) override;              ///< 处理玩家输入
 		void update(float delta_time, engine::core::Context& context) override; ///< 更新玩家逻辑
-
 	};
 }

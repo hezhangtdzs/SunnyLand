@@ -3,8 +3,11 @@
 #include "../../../engine/object/game_object.h"
 #include "../../../engine/component/collider_component.h"
 #include "../../../engine/component/physics_component.h"
-//...
-void game::component::state::DeadState::enter()
+#include <spdlog/spdlog.h>
+
+namespace game::component::state {
+
+void DeadState::enter()
 {
     spdlog::debug("玩家进入死亡状态。");
     playAnimation("hurt");  // 播放死亡(受伤)动画
@@ -20,16 +23,14 @@ void game::component::state::DeadState::enter()
     }
 }
 
-void game::component::state::DeadState::exit()
+void DeadState::exit()
 {
 }
 
-std::unique_ptr<game::component::state::PlayerState> game::component::state::DeadState::handleInput(engine::core::Context& context)
+std::unique_ptr<PlayerState> DeadState::update(float delta_time, engine::core::Context& context)
 {
-	return std::unique_ptr<PlayerState>();
+	// 死亡状态不处理任何逻辑，等待场景切换或重生
+	return nullptr;
 }
 
-std::unique_ptr<game::component::state::PlayerState> game::component::state::DeadState::update(float delta_time, engine::core::Context& context)
-{
-	return std::unique_ptr<PlayerState>();
-}
+} // namespace game::component::state

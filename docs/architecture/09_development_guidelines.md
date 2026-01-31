@@ -325,3 +325,159 @@ auto button = std::make_unique<UIButton>(
     callback
 );
 ```
+
+## 12. 使用命令模式（示例）
+
+### 12.1 初始化命令映射器
+
+```cpp
+#include "game/command/command_mapper.h"
+#include "game/command/player_commands.h"
+
+void GameScene::initCommandMapper() {
+    command_mapper_ = std::make_unique<game::command::CommandMapper>();
+
+    // 绑定动作到命令
+    command_mapper_->bind("move_left", 
+        std::make_unique<game::command::MoveLeftCommand>(player_component_));
+    command_mapper_->bind("move_right", 
+        std::make_unique<game::command::MoveRightCommand>(player_component_));
+    command_mapper_->bind("jump", 
+        std::make_unique<game::command::JumpCommand>(player_component_));
+    command_mapper_->bind("attack", 
+        std::make_unique<game::command::AttackCommand>(player_component_));
+    command_mapper_->bind("climb_up", 
+        std::make_unique<game::command::ClimbUpCommand>(player_component_));
+    command_mapper_->bind("climb_down", 
+        std::make_unique<game::command::ClimbDownCommand>(player_component_));
+    command_mapper_->bind("stop_move", 
+        std::make_unique<game::command::StopMoveCommand>(player_component_));
+}
+```
+
+### 12.2 在输入处理中使用命令
+
+```cpp
+bool GameScene::handleInput() {
+    Scene::handleInput();
+    auto& input_manager = context_.getInputManager();
+
+    // 处理移动输入
+    if (input_manager.isActionDown("move_left")) {
+        command_mapper_->execute("move_left", context_);
+    }
+    else if (input_manager.isActionDown("move_right")) {
+        command_mapper_->execute("move_right", context_);
+    }
+    else {
+        command_mapper_->execute("stop_move", context_);
+    }
+
+    // 处理跳跃输入（按下触发）
+    if (input_manager.isActionPressed("jump")) {
+        command_mapper_->execute("jump", context_);
+    }
+
+    // 处理攻击输入（按下触发）
+    if (input_manager.isActionPressed("attack")) {
+        command_mapper_->execute("attack", context_);
+    }
+
+    return true;
+}
+```
+
+### 12.3 创建自定义命令
+
+```cpp
+#include "game/command/player_commands.h"
+
+// 继承 PlayerCommand 基类
+class DashCommand : public game::command::PlayerCommand {
+    game::component::PlayerComponent* player_;
+public:
+    explicit DashCommand(game::component::PlayerComponent* player) : player_(player) {}
+    
+    void execute(engine::core::Context& context) override {
+        if (player_) {
+            // 实现冲刺逻辑
+            player_->dash(context);
+        }
+    }
+};
+
+// 在 PlayerComponent 中添加 dash 方法
+void PlayerComponent::dash(engine::core::Context& context) {
+    if (!current_state_) return;
+    auto new_state = current_state_->dash(context);
+    if (new_state) {
+        setState(std::move(new_state));
+    }
+}
+```
+
+### 12.4 实现双人控制切换
+
+```cpp
+void GameScene::switchPlayer() {
+    // 查找第二个玩家
+    auto* player2 = findGameObjectByName("player2");
+    if (!player2) return;
+
+    // 切换当前控制玩家
+    current_controlled_player_ = (current_controlled_player_ == player_) 
+        ? player2 : player_;
+
+    // 切换相机跟随
+    auto* transform = current_controlled_player_->getComponent<TransformComponent>();
+    context_.getCamera().setTarget(transform);
+
+    // 重新绑定命令到新玩家
+    auto* new_player_component = current_controlled_player_
+        ->getComponent<game::component::PlayerComponent>();
+    if (new_player_component) {
+        rebindCommandMapper(new_player_component);
+    }
+}
+
+void GameScene::rebindCommandMapper(game::component::PlayerComponent* player_component) {
+    // 清除现有命令
+    command_mapper_->clear();
+    
+    // 重新绑定所有命令到新玩家
+    command_mapper_->bind("move_left", 
+        std::make_unique<game::command::MoveLeftCommand>(player_component));
+    command_mapper_->bind("move_right", 
+        std::make_unique<game::command::MoveRightCommand>(player_component));
+    command_mapper_->bind("jump", 
+        std::make_unique<game::command::JumpCommand>(player_component));
+    command_mapper_->bind("attack", 
+        std::make_unique<game::command::AttackCommand>(player_component));
+    command_mapper_->bind("climb_up", 
+        std::make_unique<game::command::ClimbUpCommand>(player_component));
+    command_mapper_->bind("climb_down", 
+        std::make_unique<game::command::ClimbDownCommand>(player_component));
+    command_mapper_->bind("stop_move", 
+        std::make_unique<game::command::StopMoveCommand>(player_component));
+}
+```
+
+### 12.5 命令模式最佳实践
+
+1. **单一职责**: 每个命令类只负责一个具体的动作
+2. **空检查**: 在 execute() 中始终检查 player_ 指针是否为空
+3. **资源管理**: 使用 unique_ptr 管理命令对象，避免内存泄漏
+4. **动态绑定**: 利用 CommandMapper 的动态绑定特性，支持运行时切换
+5. **输入映射**: 在 config.h 中定义新的输入动作，保持一致性
+
+### 12.6 支持的命令列表
+
+| 命令类 | 功能 | 使用场景 |
+|:---|:---|:---|
+| `MoveLeftCommand` | 向左移动 | 按住 A 或 Left 键 |
+| `MoveRightCommand` | 向右移动 | 按住 D 或 Right 键 |
+| `JumpCommand` | 跳跃 | 按下 J 或 Space 键 |
+| `AttackCommand` | 攻击 | 按下 K 或鼠标左键 |
+| `ClimbUpCommand` | 向上攀爬 | 在梯子上按 W 或 Up 键 |
+| `ClimbDownCommand` | 向下攀爬 | 在梯子上按 S 或 Down 键 |
+| `StopMoveCommand` | 停止移动 | 无移动输入时自动触发 |
