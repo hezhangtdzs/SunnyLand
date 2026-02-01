@@ -86,6 +86,9 @@ add_executable(${TARGET}
     src/engine/physics/collision.cpp
     src/engine/physics/physics_engine.cpp
 
+    src/engine/interface/subject.cpp
+    src/engine/interface/observer.cpp
+
     src/game/data/session_data.cpp
 
     src/game/object/game_object_builder.cpp

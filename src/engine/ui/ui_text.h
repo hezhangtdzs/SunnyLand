@@ -8,6 +8,7 @@
 #include <string>
 #include <glm/glm.hpp>
 #include "../utils/math.h" // 用于FColor定义
+#include "../../engine/interface/observer.h"
 
 using namespace engine::utils;
 
@@ -37,7 +38,7 @@ enum class TextAlignment {
  * - 支持设置文本颜色
  * - 支持设置文本对齐方式
  */
-class UIText : public UIElement {
+class UIText : public UIElement, public engine::interface::Observer {
 private:
     /// 文本内容
     std::string text_;
@@ -139,6 +140,12 @@ public:
      * @param alignment 文本对齐方式。
      */
     void setAlignment(TextAlignment alignment) { alignment_ = alignment; }
+    /**
+     * @brief 处理事件通知。
+     * @param event_type 事件类型。
+     * @param data 事件数据。
+     */
+    void onNotify(engine::interface::EventType event_type, const std::any& data) override;
 
 private:
     /**

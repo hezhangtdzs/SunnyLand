@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <memory>
 #include "../command/command_mapper.h"
+#include "../../engine/interface/observer.h"
 
 // 前置声明
 namespace engine::object {
@@ -28,7 +29,7 @@ namespace game::scene {
     /**
      * @brief 主要的游戏场景，包含玩家、敌人、关卡元素等。
      */
-    class GameScene final : public engine::scene::Scene {
+    class GameScene final : public engine::scene::Scene , public engine::interface::Observer {
 		engine::object::GameObject* player_{ nullptr }; ///< 测试用的游戏对象指针
         game::component::PlayerComponent* player_component_{ nullptr }; ///< 玩家组件指针
         engine::object::GameObject* current_controlled_player_{ nullptr }; ///< 当前被控制的玩家对象
@@ -51,12 +52,17 @@ namespace game::scene {
         bool handleInput() override;
         void clean() override;
 
+        // 实现Observer接口
+        void onNotify(engine::interface::EventType event_type, const std::any& data) override;
+
     private:
         [[nodiscard]] bool initLevel();               ///< @brief 初始化关卡
         [[nodiscard]] bool initPlayer();              ///< @brief 初始化玩家
 		[[nodiscard]] bool initEnemyAndItem();		///< @brief 初始化敌人和道具
         void initHUD();                              ///< @brief 初始化HUD界面
         void updateHUD();                            ///< @brief 更新HUD显示
+        void updateHealthUI();                       ///< @brief 更新生命值UI（观察者模式）
+        void initHealthIcons();                      ///< @brief 初始化生命值图标
 
         void initCommandMapper();                    ///< @brief 初始化命令映射器
         void switchPlayer();                         ///< @brief 切换控制的玩家对象（双人模式）
@@ -68,6 +74,7 @@ namespace game::scene {
         void handleTileTriggers();					 ///< @brief 处理游戏对象与瓦片触发事件的逻辑
         void processHazardDamage(engine::object::GameObject* player); ///< @brief 处理玩家受到的危险伤害 (尖刺、陷阱等)
         void exampleUsageOfGameObjectBuilder();     ///< @brief GameObjectBuilder使用示例（生成器模式）
+        
         /**
          * @brief 创建一个特效对象（一次性）。
 

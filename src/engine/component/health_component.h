@@ -6,6 +6,8 @@
 
 #include "component.h"
 #include <glm/glm.hpp>
+#include "../../engine/interface/subject.h"
+#include "../../engine/interface/observer.h"
 
 namespace engine::component {
 	/**
@@ -15,7 +17,7 @@ namespace engine::component {
 	 * 该组件提供了生命值管理、伤害接收、治疗和无敌状态控制等功能，
 	 * 用于实现游戏中角色和敌人的生命值系统。
 	 */
-	class HealthComponent final :public Component {
+	class HealthComponent final :public Component, public engine::interface::Subject {
 		friend class engine::object::GameObject;
 	private:
 		/// 最大生命值
@@ -44,6 +46,8 @@ namespace engine::component {
 			if (currentHealth_ > maxHealth_) {
 				currentHealth_ = maxHealth_;
 			}
+			// 通知观察者最大生命值变化
+			notifyObservers(engine::interface::EventType::MAX_HEALTH_CHANGED, maxHealth_);
 		}
 
 		/**
@@ -51,7 +55,12 @@ namespace engine::component {
 		 * @param currentHealth 新的当前生命值，会被限制在0到最大生命值之间
 		 */
 		void setCurrentHealth(int currentHealth) {
+			int oldHealth = currentHealth_;
 			currentHealth_ = glm::clamp(currentHealth, 0, maxHealth_);
+			// 只在生命值实际变化时通知
+			if (currentHealth_ != oldHealth) {
+				notifyObservers(engine::interface::EventType::HEALTH_CHANGED, currentHealth_);
+			}
 		}
 
 		/**

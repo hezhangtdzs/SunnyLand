@@ -1,6 +1,8 @@
 #pragma once
 #include <string>
 #include <memory>
+#include "../../engine/interface/subject.h"
+#include "../../engine/interface/observer.h"
 #include <nlohmann/json.hpp>
 
 namespace game::data {
@@ -12,7 +14,7 @@ namespace game::data {
  * 负责存储和管理玩家生命值、得分、当前关卡等跨场景的游戏数据
  * 使用 shared_ptr 在场景间共享数据，生命周期独立于场景
  */
-class SessionData final {
+class SessionData final : public engine::interface::Subject , public engine::interface::Observer {
 private:
     int current_health_; ///< 当前生命值
     int saved_health_; ///< 上次保存的生命值（用于手动保存时）
@@ -63,6 +65,12 @@ public:
      * @return bool 加载是否成功
      */
     bool load();
+    /**
+     * @brief 通知观察者数据已更新
+     * @param event_type 事件类型
+     * @param data 事件数据
+     */
+    void onNotify(engine::interface::EventType event_type, const std::any& data) override;
 
     // Getter 和 Setter 方法
     int getCurrentHealth() const { return current_health_; }

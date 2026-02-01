@@ -573,3 +573,326 @@ flowchart LR
 3. **可扩展性**: 新增动作只需在基类添加接口，在相关状态实现
 4. **可维护性**: 动作逻辑集中在状态类中，易于理解和修改
 5. **状态安全**: 状态类自主决定支持哪些动作，防止非法状态转换
+
+## 9. 观察者模式 (Observer Pattern)
+
+本项目使用 **观察者模式** 解耦数据变化与 UI 更新，实现响应式的数据驱动 UI 系统。
+
+### 9.1 架构概述
+
+```mermaid
+classDiagram
+    class Observer {
+        <<interface>>
+        +onNotify(EventType, data)* void
+    }
+
+    class Subject {
+        <<interface>>
+        -observers_: vector~Observer*~
+        +addObserver(Observer*) void
+        +removeObserver(Observer*) void
+        +notifyObservers(EventType, data) void
+    }
+
+    class SessionData {
+        -current_score_: int
+        -current_health_: int
+        +addScore(int) void
+        +setCurrentHealth(int) void
+    }
+
+    class HealthComponent {
+        -currentHealth_: int
+        -maxHealth_: int
+        +takeDamage(int) bool
+        +heal(int) void
+    }
+
+    class UIText {
+        -text_: string
+        +setText(string) void
+        +onNotify(EventType, data) void
+    }
+
+    class GameScene {
+        -health_icons_: vector~UIImage*~
+        +onNotify(EventType, data) void
+        +updateHealthUI() void
+    }
+
+    Observer <|-- UIText
+    Observer <|-- GameScene
+    Observer <|-- SessionData
+    Subject <|-- SessionData
+    Subject <|-- HealthComponent
+    Subject --> Observer
+    UIText ..> SessionData : 订阅
+    GameScene ..> HealthComponent : 订阅
+    GameScene ..> SessionData : 订阅
+```
+
+### 9.2 核心组件详解
+
+#### 9.2.1 Observer 接口
+
+**文件**: `src/engine/interface/observer.h`
+
+```cpp
+enum class EventType {
+    HEALTH_CHANGED,
+    MAX_HEALTH_CHANGED,
+    SCORE_CHANGED,
+};
+
+class Observer {
+public:
+    virtual ~Observer() = default;
+    virtual void onNotify(EventType event_type, const std::any& data) = 0;
+};
+```
+
+#### 9.2.2 Subject 接口
+
+**文件**: `src/engine/interface/subject.h`
+
+```cpp
+class Subject {
+    std::vector<Observer*> observers_;
+public:
+    virtual ~Subject();
+    
+    void addObserver(Observer* observer);
+    void removeObserver(Observer* observer);
+    void clearObservers();
+    
+protected:
+    void notifyObservers(const EventType& event, const std::any& data);
+};
+```
+
+**说明**:
+- `notifyObservers()` 是受保护方法，供子类在状态变化时调用
+- 实现了双向引用安全机制：Subject 和 Observer 互相持有引用，析构时自动解除
+- 使用 `std::any` 传递事件数据，支持任意类型
+
+#### 9.2.3 具体 Subject 实现
+
+**SessionData** (`src/game/data/session_data.h/cpp`):
+
+```cpp
+class SessionData : public engine::interface::Subject, public engine::interface::Observer {
+    void addScore(int score) {
+        if (score > 0) {
+            current_score_ += score;
+            updateHighScore();
+            // 通知观察者分数变化
+            notifyObservers(engine::interface::EventType::SCORE_CHANGED, current_score_);
+        }
+    }
+    
+    void onNotify(engine::interface::EventType event_type, const std::any& data) override {
+        if (event_type == engine::interface::EventType::HEALTH_CHANGED) {
+            int health = std::any_cast<int>(data);
+            setCurrentHealth(health);
+        }
+        else if (event_type == engine::interface::EventType::MAX_HEALTH_CHANGED) {
+            int max_health = std::any_cast<int>(data);
+            setMaxHealth(max_health);
+        }
+    }
+};
+```
+
+**HealthComponent** (`src/engine/component/health_component.h/cpp`):
+
+```cpp
+class HealthComponent : public Component, public engine::interface::Subject {
+    bool takeDamage(int damage) {
+        if (damage <= 0 || !isAlive() || isInvincible()) return false;
+        currentHealth_ -= damage;
+        currentHealth_ = glm::max(0, currentHealth_);
+        // 通知观察者生命值变化
+        notifyObservers(engine::interface::EventType::HEALTH_CHANGED, currentHealth_);
+        return true;
+    }
+    
+    void heal(int amount) {
+        if (amount <= 0 || !isAlive()) return;
+        currentHealth_ += amount;
+        currentHealth_ = glm::min(currentHealth_, maxHealth_);
+        // 通知观察者生命值变化
+        notifyObservers(engine::interface::EventType::HEALTH_CHANGED, currentHealth_);
+    }
+    
+    void setMaxHealth(int maxHealth) {
+        maxHealth_ = maxHealth;
+        if (currentHealth_ > maxHealth_) {
+            currentHealth_ = maxHealth_;
+        }
+        // 通知观察者最大生命值变化
+        notifyObservers(engine::interface::EventType::MAX_HEALTH_CHANGED, maxHealth_);
+    }
+};
+```
+
+#### 9.2.4 具体 Observer 实现
+
+**UIText** (`src/engine/ui/ui_text.h/cpp`):
+
+```cpp
+class UIText : public UIElement, public engine::interface::Observer {
+    void onNotify(engine::interface::EventType event_type, const std::any& data) override {
+        if (event_type == engine::interface::EventType::SCORE_CHANGED) {
+            if (const int* score = std::any_cast<int>(&data)) {
+                setText("Score: " + std::to_string(*score));
+                updateSize();
+            }
+        }
+    }
+};
+```
+
+**GameScene** (`src/game/scene/game_scene.h/cpp`):
+
+```cpp
+class GameScene : public engine::scene::Scene, public engine::interface::Observer {
+    void onNotify(engine::interface::EventType event_type, const std::any& data) override {
+        switch (event_type) {
+            case engine::interface::EventType::HEALTH_CHANGED:
+                if (const int* health = std::any_cast<int>(&data)) {
+                    session_data_->setCurrentHealth(*health);
+                    updateHealthUI();
+                }
+                break;
+            case engine::interface::EventType::MAX_HEALTH_CHANGED:
+                initHealthIcons();
+                break;
+        }
+    }
+    
+    void updateHealthUI() {
+        int current_health = session_data_->getCurrentHealth();
+        for (size_t i = 0; i < health_icons_.size(); ++i) {
+            if (health_icons_[i]) {
+                health_icons_[i]->setVisible(i < current_health);
+            }
+        }
+    }
+};
+```
+
+### 9.3 工作流程
+
+#### 9.3.1 建立订阅关系
+
+```cpp
+void GameScene::initHUD() {
+    // 创建 UI 元素...
+    score_text_ = score_text.get();
+    
+    // 建立观察者订阅关系
+    if (session_data_ && score_text_) {
+        session_data_->addObserver(score_text_);
+    }
+}
+
+bool GameScene::initPlayer() {
+    // 初始化玩家...
+    
+    // GameScene 订阅 HealthComponent 的生命值变化
+    if (auto* health_component = player_->getComponent<HealthComponent>()) {
+        health_component->addObserver(this);
+    }
+}
+```
+
+#### 9.3.2 数据变化通知流程
+
+```mermaid
+sequenceDiagram
+    participant Collision as 碰撞检测
+    participant Session as SessionData
+    participant Health as HealthComponent
+    participant Subject as Subject::notify
+    participant UIText as UIText
+    participant GameScene as GameScene
+
+    Collision->>Session: addScore(100)
+    Session->>Subject: notify(SCORE_CHANGED, score)
+    Subject->>UIText: onNotify(SCORE_CHANGED, score)
+    UIText->>UIText: setText("Score: " + score)
+    
+    Collision->>Health: takeDamage(1)
+    Health->>Subject: notify(HEALTH_CHANGED, health)
+    Subject->>GameScene: onNotify(HEALTH_CHANGED, health)
+    GameScene->>GameScene: updateHealthUI()
+```
+
+### 9.4 使用示例
+
+#### 9.4.1 分数更新（自动 UI 更新）
+
+```cpp
+// 旧方式：手动更新数据和 UI
+session_data_->addScore(100);
+updateHUD();  // 手动调用
+
+// 新方式：只更新数据，UI 自动响应
+session_data_->addScore(100);  // UIText 自动更新显示
+```
+
+#### 9.4.2 生命值更新（自动 UI 更新）
+
+```cpp
+// 玩家受伤
+player->takeDamage(1);  // GameScene 自动更新生命值图标
+
+// 玩家回血
+player->heal(1);  // GameScene 自动更新生命值图标
+```
+
+### 9.5 生命周期管理
+
+```cpp
+void GameScene::clean() {
+    // 取消观察者订阅，避免悬垂指针
+    if (session_data_ && score_text_) {
+        session_data_->removeObserver(score_text_);
+    }
+    
+    if (player_) {
+        if (auto* health_component = player_->getComponent<HealthComponent>()) {
+            health_component->removeObserver(this);
+        }
+    }
+    
+    Scene::clean();
+}
+```
+
+### 9.6 设计优势
+
+1. **松耦合**: 数据源不需要知道 UI 的存在，UI 也不需要知道数据源的内部实现
+2. **自动更新**: 数据变化自动触发 UI 更新，无需手动调用
+3. **一对多**: 一个数据源可以被多个观察者订阅
+4. **可扩展**: 新增观察者只需实现 Observer 接口并订阅
+5. **可维护**: UI 更新逻辑集中在各自的 onNotify 方法中
+
+### 9.7 与命令模式的协作
+
+观察者模式和命令模式共同构成本项目的响应式架构：
+
+```mermaid
+flowchart LR
+    Input[输入] --> Command[命令模式]
+    Command --> Data[数据修改]
+    Data --> Subject[Subject]
+    Subject --> Observer[Observer]
+    Observer --> UI[UI 更新]
+```
+
+- **命令模式**: 处理用户输入，触发数据修改
+- **观察者模式**: 监听数据变化，自动更新 UI
+
+这种架构实现了完整的 **数据驱动 UI** 模式。

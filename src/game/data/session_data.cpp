@@ -33,7 +33,20 @@ std::shared_ptr<game::data::SessionData> game::data::SessionData::getInstance(
     return instance;
 }
 
-void game::data::SessionData::setCurrentHealth(int health) {
+void game::data::SessionData::onNotify(engine::interface::EventType event_type, const std::any &data)
+{
+    if (event_type == engine::interface::EventType::HEALTH_CHANGED) {
+        int health = std::any_cast<int>(data);
+        setCurrentHealth(health);
+    }
+    else if (event_type == engine::interface::EventType::MAX_HEALTH_CHANGED) {
+        int max_health = std::any_cast<int>(data);
+        setMaxHealth(max_health);
+    }
+}
+
+void game::data::SessionData::setCurrentHealth(int health)
+{
     if (health < 0) {
         current_health_ = 0;
         spdlog::info("Player health set to 0 (dead)");
@@ -76,6 +89,8 @@ void game::data::SessionData::addScore(int score) {
         spdlog::debug("Score added: {}, total: {}", score, current_score_);
         // 更新最高分
         updateHighScore();
+        // 通知观察者分数变化
+        notifyObservers(engine::interface::EventType::SCORE_CHANGED, current_score_);
     }
 }
 

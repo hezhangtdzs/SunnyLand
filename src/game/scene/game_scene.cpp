@@ -73,7 +73,8 @@ namespace game::scene {
         handleObjectCollisions();
         handleTileTriggers();
         Scene::update(delta_time);
-        updateHUD(); // 更新HUD显示
+        // HUD 更新现在由观察者模式自动处理
+        // updateHUD(); // 已废弃：分数由 UIText 观察者更新，生命值由 GameScene 观察者更新
 
         // 检查游戏失败条件
         if (session_data_) {
@@ -222,8 +223,15 @@ void GameScene::initHUD() {
     hud_panel->addChild(std::move(score_text));
     
     ui_manager->addElement(std::move(hud_panel));
-    updateHUD();
     
+    // 建立观察者订阅关系
+    // 分数文本订阅 SessionData 的分数变化
+    if (session_data_ && score_text_) {
+        session_data_->addObserver(score_text_);
+    }
+    
+    // 初始化 HUD 显示
+    updateHUD();
 }
 
 
@@ -302,6 +310,11 @@ void GameScene::updateHUD() {
             health_component->setCurrentHealth(session_data_->getCurrentHealth());
             spdlog::info("使用会话数据初始化玩家生命值: {}/{}", 
                 session_data_->getCurrentHealth(), session_data_->getMaxHealth());
+            
+            // GameScene 订阅 HealthComponent 的生命值变化
+            health_component->addObserver(this);
+            health_component->addObserver(session_data_.get());
+            spdlog::info("GameScene 已订阅 HealthComponent 的生命值变化");
         }
     }
 
@@ -687,18 +700,15 @@ void GameScene::updateHUD() {
             auto* health = player->getComponent<engine::component::HealthComponent>();
             if (health) {
                 health->heal(1);  // 加血
-                // 更新会话数据中的生命值
-                if (session_data_) {
-                    session_data_->setCurrentHealth(health->getCurrentHealth());
-                }
             }
         }
         else if (item->getName() == "gem" || item->getTag() == "gem") {
-            // 加分并更新会话数据
+            // 加分 - UI 会自动更新（通过观察者模式）
             const int gem_score = 100;
             if (session_data_) {
                 session_data_->addScore(gem_score);
-                spdlog::info("玩家获得 {} 分，总得分: {}", gem_score, session_data_->getCurrentScore());
+                // 注意：不需要手动更新 UI，UIText 观察者会自动处理
+                spdlog::info("玩家获得 {} 分", gem_score);
             }
         }
         item->setNeedRemove(true);  // 标记道具为待删除状态
@@ -774,15 +784,6 @@ void GameScene::updateHUD() {
         auto* player_comp = player->getComponent<game::component::PlayerComponent>();
         if (player_comp) {
             player_comp->takeDamage(1, context_);
-            
-            if (session_data_) {
-                auto* health = player->getComponent<engine::component::HealthComponent>();
-                if (health) {
-                    session_data_->setCurrentHealth(health->getCurrentHealth());
-                    spdlog::info("玩家受伤，生命值更新: {}/{}", 
-                        session_data_->getCurrentHealth(), session_data_->getMaxHealth());
-                }
-            }
         }
     }
 
@@ -826,6 +827,73 @@ void GameScene::updateHUD() {
         safeAddGameObject(std::move(effect_obj));  // 安全添加特效对象
     }
 
+    void GameScene::onNotify(engine::interface::EventType event_type, const std::any& data)
+    {
+        switch (event_type) {
+            case engine::interface::EventType::SCORE_CHANGED:
+                // 分数更新已由 UIText 处理，这里可以添加额外逻辑
+                spdlog::debug("GameScene 收到分数变化通知");
+                break;
+            case engine::interface::EventType::HEALTH_CHANGED:
+                // 更新生命值 UI
+                if (session_data_) {
+                    if (const int* health = std::any_cast<int>(&data)) {
+                        updateHealthUI();
+                        spdlog::debug("GameScene 收到生命值变化通知: {}", *health);
+                    }
+                }
+                break;
+            case engine::interface::EventType::MAX_HEALTH_CHANGED:
+                // 重新初始化生命值图标
+                initHealthIcons();
+                spdlog::debug("GameScene 收到最大生命值变化通知");
+                break;
+        }
+    }
+
+    void GameScene::updateHealthUI()
+    {
+        if (session_data_) {
+            int current_health = player_->getComponent<engine::component::HealthComponent>()->getCurrentHealth();
+            for (size_t i = 0; i < health_icons_.size(); ++i) {
+                if (health_icons_[i]) {
+                    health_icons_[i]->setVisible(i < current_health);
+                }
+            }
+        }
+    }
+
+    void GameScene::initHealthIcons()
+    {
+        // 清除旧的生命值图标
+        health_icons_.clear();
+        
+        if (!hud_panel_ || !session_data_) return;
+        
+        // 移除旧的子元素（生命值图标）
+        // 注意：这里假设 hud_panel_ 的子元素中，前 max_health 个是生命值图标
+        // 实际实现可能需要更精确的控制
+        
+        const float padding = 20.0f;
+        int max_health = player_->getComponent<engine::component::HealthComponent>()->getMaxHealth();
+        
+        for (int i = 0; i < max_health; ++i) {
+            glm::vec2 icon_pos = { padding + i * 36.0f, padding };
+            
+            // 背景心
+            auto health_bg = std::make_unique<engine::ui::UIImage>(context_, "assets/textures/UI/Heart-bg.png", 
+                                                                  icon_pos, 
+                                                                  glm::vec2(32.0f, 32.0f));
+            hud_panel_->addChild(std::move(health_bg));
+            
+            // 实心红心
+            auto health_icon = std::make_unique<engine::ui::UIImage>(context_, "assets/textures/UI/Heart.png", 
+                                                                  icon_pos, 
+                                                                  glm::vec2(32.0f, 32.0f));
+            health_icons_.push_back(health_icon.get());
+            hud_panel_->addChild(std::move(health_icon));
+        }
+    }
 
     
 }

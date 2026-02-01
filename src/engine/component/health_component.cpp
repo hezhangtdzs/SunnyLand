@@ -1,5 +1,7 @@
 #include "health_component.h"
 #include "../object/game_object.h"
+#include "../interface/observer.h"
+
 #include<spdlog/spdlog.h>
 
 namespace engine::component {
@@ -21,6 +23,8 @@ bool HealthComponent::takeDamage(int damage)
 		invincibility_timer_ = invincibility_duration_;
 	}
 	spdlog::info("GameObject [{}] took {} damage, current health: {}/{}", owner_->getName(), damage, currentHealth_, maxHealth_);
+	// 通知观察者生命值变化
+	notifyObservers(engine::interface::EventType::HEALTH_CHANGED, currentHealth_);
 	return true;
 
 }
@@ -37,6 +41,8 @@ void HealthComponent::heal(int amount)
 	currentHealth_ += amount;
 	currentHealth_ = glm::min(currentHealth_, maxHealth_);
 	spdlog::info("GameObject [{}] healed {} health, current health: {}/{}", owner_->getName(), amount, currentHealth_, maxHealth_);
+	// 通知观察者生命值变化
+	notifyObservers(engine::interface::EventType::HEALTH_CHANGED, currentHealth_);
 }
 
 /**

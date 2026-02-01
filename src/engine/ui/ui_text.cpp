@@ -71,7 +71,20 @@ void UIText::render() {
     UIElement::render();
 }
 
-void UIText::updateSize() {
+void UIText::onNotify(engine::interface::EventType event_type, const std::any &data)
+{
+    if (event_type == engine::interface::EventType::SCORE_CHANGED) {
+        // 安全地从 std::any 中提取数据
+        if (const int* score = std::any_cast<int>(&data)) {
+            setText("Score: " + std::to_string(*score));
+            // 更新文本尺寸
+            updateSize();
+        }
+    }
+}
+
+void UIText::updateSize()
+{
     size_ = context_.getTextRenderer().getTextSize(text_, font_path_, font_size_);
 }
 }
