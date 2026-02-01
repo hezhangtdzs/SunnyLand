@@ -124,7 +124,7 @@ public:
      * @brief 获取元素大小。
      * @return 元素大小。
      */
-    const glm::vec2& getSize() const { return size_; }
+    virtual const glm::vec2& getSize() const { return size_; }
 
     /**
      * @brief 设置元素大小。

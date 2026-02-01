@@ -12,6 +12,7 @@ namespace engine::render {
 
     // 静态变量，用于跟踪TTF库的初始化状态
     static bool ttf_initialized = false;
+    static int text_renderer_instances = 0;
 
     /**
      * @brief 构造 TextRenderer 实例。
@@ -21,6 +22,8 @@ namespace engine::render {
      */
     TextRenderer::TextRenderer(SDL_Renderer* sdl_renderer, engine::resource::ResourceManager* resource_manager)
         : sdl_renderer_(sdl_renderer), resource_manager_(resource_manager) {
+
+        ++text_renderer_instances;
         
         // 初始化 SDL3_ttf 库
         if (!ttf_initialized) {
@@ -41,15 +44,20 @@ namespace engine::render {
      * @brief 析构函数，释放资源。
      */
     TextRenderer::~TextRenderer() {
+        // 必须先销毁缓存的 TTF_Text（它们依赖 text_engine_ / SDL_ttf 全局状态）
+        text_cache_.clear();
+
         if (text_engine_) {
             TTF_DestroyRendererTextEngine(text_engine_);
             text_engine_ = nullptr;
         }
         
-        // 关闭 SDL3_ttf 库（仅当所有TextRenderer实例都被销毁时）
-        if (ttf_initialized) {
+        // 关闭 SDL3_ttf 库（仅当所有 TextRenderer 实例都被销毁时）
+        --text_renderer_instances;
+        if (ttf_initialized && text_renderer_instances <= 0) {
             TTF_Quit();
             ttf_initialized = false;
+            text_renderer_instances = 0;
         }
     }
     
@@ -106,7 +114,49 @@ namespace engine::render {
                                  const std::string& font_path,
                                  int font_size,
                                  const glm::vec2& position,
-                                 const engine::utils::FColor& color) {
+                                 const engine::utils::FColor& color,
+                                 bool is_dirty) {
+        TTF_Text* ttf_text = nullptr;
+
+        if (is_dirty) {
+            // 获取字体
+            TTF_Font* font = resource_manager_->getFont(font_path, font_size);
+            if (!font) {
+                return;
+            }
+
+            // 从缓存获取 / 创建文本对象
+            ttf_text = getTTFText(text);
+            if (!ttf_text) {
+                ttf_text = createTTFText(text, font);
+                if (!ttf_text) {
+                    return;
+                }
+            }
+
+            // 仅在脏时同步状态（昂贵）
+            TTF_SetTextFont(ttf_text, font);
+            TTF_SetTextString(ttf_text, text.c_str(), 0);
+        } else {
+            // 干净时直接复用缓存
+            ttf_text = getTTFText(text);
+            if (!ttf_text) {
+                // 理论上不应发生：干净意味着之前已创建并同步
+                return;
+            }
+        }
+
+        TTF_SetTextColorFloat(ttf_text, 0.0f, 0.0f, 0.0f, 1.0f);
+        TTF_DrawRendererText(ttf_text, position.x + 2, position.y + 2);
+
+        TTF_SetTextColorFloat(ttf_text, color.r, color.g, color.b, color.a);
+        
+        // 直接使用屏幕坐标绘制文本
+        TTF_DrawRendererText(ttf_text, position.x, position.y);
+    }
+
+    void TextRenderer::drawUIText(std::string &&text, const std::string &font_path, int font_size, const glm::vec2 &position, const engine::utils::FColor &color)
+    {
         // 获取字体
         TTF_Font* font = resource_manager_->getFont(font_path, font_size);
         if (!font) {
@@ -139,20 +189,54 @@ namespace engine::render {
      * @return 文本的宽度和高度
      */
     glm::vec2 TextRenderer::getTextSize(const std::string& text, const std::string& font_path, int font_size) {
+        return getTextSize(text, font_path, font_size, true);
+    }
+
+    glm::vec2 TextRenderer::getTextSize(const std::string& text, const std::string& font_path, int font_size, bool is_dirty) {
         TTF_Font* font = resource_manager_->getFont(font_path, font_size);
         if (!font) {
             return { 0.0f, 0.0f };
         }
 
-        TTF_Text* ttf_text = TTF_CreateText(text_engine_, font, text.c_str(), 0);
-        if (!ttf_text) {
-            return { 0.0f, 0.0f };
+        TTF_Text* ttf_text = nullptr;
+        if (is_dirty) {
+            ttf_text = getTTFText(text);
+            if (!ttf_text) {
+                ttf_text = createTTFText(text, font);
+                if (!ttf_text) {
+                    return { 0.0f, 0.0f };
+                }
+            }
+
+            TTF_SetTextFont(ttf_text, font);
+            TTF_SetTextString(ttf_text, text.c_str(), 0);
+        } else {
+            ttf_text = getTTFText(text);
+            if (!ttf_text) {
+                return { 0.0f, 0.0f };
+            }
         }
 
-        int w, h;
+        int w = 0, h = 0;
         TTF_GetTextSize(ttf_text, &w, &h);
-        TTF_DestroyText(ttf_text);
-
         return { static_cast<float>(w), static_cast<float>(h) };
+    }
+    TTF_Text *TextRenderer::getTTFText(const std::string &text)
+    {
+        const auto cache_key = reinterpret_cast<std::uintptr_t>(&text);
+        auto it = text_cache_.find(cache_key);
+        if (it == text_cache_.end()) {
+            return nullptr;
+        }
+        return it->second.get();
+    }
+    TTF_Text *TextRenderer::createTTFText(const std::string &text, TTF_Font *font)
+    {
+        const auto cache_key = reinterpret_cast<std::uintptr_t>(&text);
+        auto& slot = text_cache_[cache_key];
+        if (!slot) {
+            slot = std::unique_ptr<TTF_Text, TTFTextDeleter>(TTF_CreateText(text_engine_, font, text.c_str(), 0));
+        }
+        return slot.get();
     }
 }

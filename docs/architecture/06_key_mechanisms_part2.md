@@ -262,3 +262,236 @@ stateDiagram-v2
 2. **输入响应**: `InputManager` 根据状态决定如何处理输入（如暂停时忽略游戏输入）
 3. **UI 显示**: UI 系统根据状态显示不同的界面（暂停菜单、游戏结束画面等）
 4. **窗口管理**: 提供统一的窗口尺寸查询接口，支持不同分辨率的适配
+
+## 13. 脏标识模式 (Dirty Flag Pattern)
+
+本项目使用 **脏标识模式** 优化 UI 文本渲染性能，避免每帧执行昂贵的文本测量和渲染状态同步操作。
+
+### 13.1 问题背景
+
+文本渲染涉及多个昂贵操作：
+- **尺寸测量**: `TTF_GetTextSize` 需要计算字形布局
+- **字体切换**: `TTF_SetTextFont` 可能触发纹理更新
+- **文本更新**: `TTF_SetTextString` 需要重新准备字形
+
+如果这些操作每帧都执行，会造成严重的性能瓶颈。
+
+### 13.2 两层脏标识架构
+
+```mermaid
+flowchart TB
+    subgraph UI层["UI层 (UIText)"]
+        A[text_/font_path_/font_size_ 变化] --> B{is_dirty_}
+        B -->|true| C[ensureUpToDate]
+        B -->|false| D[使用缓存值]
+        C --> E[updateSize]
+    end
+    
+    subgraph 渲染层["渲染层 (TextRenderer)"]
+        E --> F[getTextSize/drawUIText]
+        F --> G{is_dirty 参数}
+        G -->|true| H[同步TTF_Text状态<br/>TTF_SetTextFont<br/>TTF_SetTextString]
+        G -->|false| I[直接复用缓存]
+    end
+    
+    style UI层 fill:#e3f2fd
+    style 渲染层 fill:#fff3e0
+```
+
+### 13.3 UI层实现 (UIText)
+
+**文件**: `src/engine/ui/ui_text.h/cpp`
+
+```cpp
+class UIText : public UIElement {
+private:
+    std::string text_;           // 文本内容
+    std::string font_path_;      // 字体路径
+    int font_size_ = 16;         // 字体大小
+    bool is_dirty_ = true;       // 脏标识
+    
+public:
+    void setText(const std::string& text) {
+        text_ = text;
+        is_dirty_ = true;        // 标记脏，不立即计算
+    }
+    
+    const glm::vec2& getSize() const override {
+        ensureUpToDate();        // 访问时检查
+        return size_;
+    }
+    
+    void render() override {
+        ensureUpToDate();
+        text_renderer.drawUIText(text_, ..., is_dirty_);
+        is_dirty_ = false;       // 渲染后清除脏标记
+    }
+    
+private:
+    void ensureUpToDate() const {
+        if (is_dirty_) {
+            const_cast<UIText*>(this)->updateSize();
+        }
+    }
+    
+    void updateSize() {
+        size_ = text_renderer.getTextSize(text_, font_path_, font_size_, is_dirty_);
+    }
+};
+```
+
+**设计要点**:
+- **延迟计算**: Setter 只标记脏状态，不立即执行昂贵操作
+- **访问时计算**: 在 `getSize()` 和 `render()` 时才检查并刷新
+- **自动传播**: 将脏状态传递给渲染层
+
+### 13.4 渲染层实现 (TextRenderer)
+
+**文件**: `src/engine/render/text_renderer.h/cpp`
+
+```cpp
+class TextRenderer {
+public:
+    // 绘制UI文本，is_dirty 决定是否执行昂贵同步
+    void drawUIText(const std::string& text,
+                   const std::string& font_path,
+                   int font_size,
+                   const glm::vec2& position,
+                   const FColor& color,
+                   bool is_dirty = true);
+    
+    // 获取文本尺寸
+    glm::vec2 getTextSize(const std::string& text,
+                          const std::string& font_path,
+                          int font_size,
+                          bool is_dirty);
+    
+private:
+    // 缓存：key 是 string 对象的地址
+    std::unordered_map<std::uintptr_t, std::unique_ptr<TTF_Text, TTFTextDeleter>> text_cache_;
+};
+```
+
+**实现逻辑**:
+
+```cpp
+void TextRenderer::drawUIText(..., bool is_dirty) {
+    TTF_Text* ttf_text = nullptr;
+    
+    if (is_dirty) {
+        // 脏状态：执行昂贵同步
+        ttf_text = getTTFText(text);
+        if (!ttf_text) {
+            ttf_text = createTTFText(text, font);
+        }
+        TTF_SetTextFont(ttf_text, font);      // 昂贵操作
+        TTF_SetTextString(ttf_text, text.c_str(), 0);  // 昂贵操作
+    } else {
+        // 干净状态：直接复用缓存
+        ttf_text = getTTFText(text);
+    }
+    
+    // 绘制（无论脏/干净都执行）
+    TTF_DrawRendererText(ttf_text, position.x, position.y);
+}
+```
+
+### 13.5 缓存策略
+
+**缓存Key设计**:
+- 使用 `std::uintptr_t(&text)` 即 string 对象的地址作为 key
+- **优点**: O(1) 查找，无需字符串哈希计算
+- **适用场景**: UI 文本对象生命周期稳定
+
+```cpp
+TTF_Text* TextRenderer::getTTFText(const std::string& text) {
+    const auto cache_key = reinterpret_cast<std::uintptr_t>(&text);
+    auto it = text_cache_.find(cache_key);
+    if (it == text_cache_.end()) {
+        return nullptr;
+    }
+    return it->second.get();
+}
+```
+
+### 13.6 典型使用场景
+
+#### 场景A：创建UI后立即布局
+
+```cpp
+// EndScene::createUI()
+auto title_label = std::make_unique<UIText>(context_, "Game Over", font_path, 48);
+// 此时 is_dirty_ = true
+
+// 需要计算居中位置
+glm::vec2 text_size = title_label->getSize();  // 触发 ensureUpToDate()
+// 内部调用 TextRenderer::getTextSize(..., true)
+// 创建 TTF_Text 并同步状态
+
+float center_x = (window_size.x - text_size.x) / 2.0f;
+title_label->setPosition(center_x, 100.0f);
+```
+
+#### 场景B：分数每帧渲染但很少变化
+
+```cpp
+// 得分时触发变化
+void UIText::onNotify(EventType event_type, const std::any& data) {
+    if (event_type == EventType::SCORE_CHANGED) {
+        if (const int* score = std::any_cast<int>(&data)) {
+            setText("Score: " + std::to_string(*score));  // is_dirty_ = true
+        }
+    }
+}
+
+// 渲染循环
+void UIText::render() {
+    ensureUpToDate();  // 只有脏时才更新 size_
+    
+    text_renderer.drawUIText(text_, ..., is_dirty_);
+    // is_dirty_ == true:  执行 TTF_SetText* (昂贵)
+    // is_dirty_ == false: 直接绘制缓存 (廉价)
+    
+    is_dirty_ = false;  // 清除脏标记
+}
+```
+
+### 13.7 性能收益
+
+| 操作 | 每帧执行（无脏标识） | 变化时执行（有脏标识） | 收益 |
+|------|---------------------|----------------------|------|
+| `TTF_SetTextFont` | ✓ | 仅字体变化时 | 避免重复设置 |
+| `TTF_SetTextString` | ✓ | 仅文本变化时 | 避免重复准备字形 |
+| `getTextSize` | ✓ | 仅脏时 | 避免重复测量 |
+| 纹理更新 | ✓ | 仅必要时 | 显著减少GPU上传 |
+
+### 13.8 生命周期安全
+
+缓存的 `TTF_Text` 必须在 SDL_ttf 仍有效时销毁：
+
+```cpp
+TextRenderer::~TextRenderer() {
+    // 1. 先清空缓存（销毁所有 TTF_Text）
+    text_cache_.clear();
+    
+    // 2. 再销毁 text_engine_
+    if (text_engine_) {
+        TTF_DestroyRendererTextEngine(text_engine_);
+    }
+    
+    // 3. 最后才 TTF_Quit()
+    --text_renderer_instances;
+    if (text_renderer_instances <= 0) {
+        TTF_Quit();
+    }
+}
+```
+
+**关键点**: 严格的析构顺序避免退出时崩溃。
+
+### 13.9 设计优势
+
+1. **分层解耦**: UI层负责标记变化，渲染层负责优化执行
+2. **延迟计算**: 避免不必要的中间计算
+3. **缓存复用**: 稳定的 UI 元素享受最大性能收益
+4. **自动管理**: 脏状态自动传播和清除，使用简单

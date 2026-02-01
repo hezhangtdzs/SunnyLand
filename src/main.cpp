@@ -26,7 +26,7 @@ void onInitSceneManager(engine::scene::SceneManager& scene_manager) {
 
 int main(int /* argc */, char* /* argv */[]) {
     engine::core::GameApp app;
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_level(spdlog::level::info);
     app.setOnInitCallback(onInitSceneManager);
     app.run();
     return 0;

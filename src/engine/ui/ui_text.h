@@ -51,6 +51,9 @@ private:
     /// 文本对齐方式
     TextAlignment alignment_ = TextAlignment::LEFT;
 
+    // 脏标识：当文本/字体/字号变化时标记为 true
+    bool is_dirty_ = true;
+
 public:
     /**
      * @brief 构造函数。
@@ -71,6 +74,12 @@ public:
      */
     void render() override;
 
+    // UIText 的尺寸获取需要支持延迟更新（用于布局阶段）
+    const glm::vec2& getSize() const override;
+
+    // 仅在需要时才刷新尺寸（脏标识模式）
+    void ensureUpToDate() const;
+
     // Getters and Setters
     /**
      * @brief 获取文本内容。
@@ -84,7 +93,7 @@ public:
      */
     void setText(const std::string& text) { 
         text_ = text; 
-        updateSize();
+        is_dirty_ = true;
     }
 
     /**
@@ -99,7 +108,7 @@ public:
      */
     void setFontPath(const std::string& font_path) { 
         font_path_ = font_path; 
-        updateSize();
+        is_dirty_ = true;
     }
 
     /**
@@ -114,7 +123,7 @@ public:
      */
     void setFontSize(int font_size) { 
         font_size_ = font_size; 
-        updateSize();
+        is_dirty_ = true;
     }
 
     /**

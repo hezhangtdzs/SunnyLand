@@ -17,13 +17,19 @@ UIText::UIText(engine::core::Context& context, const std::string& text, const st
       text_(text),
       font_path_(font_path),
       font_size_(font_size) {
-    updateSize();
+    is_dirty_ = true;
 }
 
 /**
  * @brief 析构函数。
  */
 UIText::~UIText() = default;
+
+const glm::vec2& UIText::getSize() const
+{
+    ensureUpToDate();
+    return size_;
+}
 
 /**
  * @brief 渲染文本及其子元素。
@@ -41,6 +47,8 @@ void UIText::render() {
         return;
     }
 
+    ensureUpToDate();
+
     // 获取文本渲染器
     auto& text_renderer = context_.getTextRenderer();
     
@@ -51,7 +59,7 @@ void UIText::render() {
     glm::vec2 render_pos = world_pos;
     
     if (alignment_ != TextAlignment::LEFT) {
-        glm::vec2 text_size = text_renderer.getTextSize(text_, font_path_, font_size_);
+        const glm::vec2& text_size = size_;
         if (alignment_ == TextAlignment::CENTER) {
             render_pos.x -= text_size.x * 0.5f;
             render_pos.y -= text_size.y * 0.5f; // 同时进行水平和垂直居中
@@ -65,7 +73,10 @@ void UIText::render() {
                            font_path_,
                            font_size_,
                            render_pos,
-                           color_);
+                           color_,
+                           is_dirty_);
+
+    is_dirty_ = false;
     
     // 调用父类render方法渲染子元素
     UIElement::render();
@@ -77,14 +88,21 @@ void UIText::onNotify(engine::interface::EventType event_type, const std::any &d
         // 安全地从 std::any 中提取数据
         if (const int* score = std::any_cast<int>(&data)) {
             setText("Score: " + std::to_string(*score));
-            // 更新文本尺寸
-            updateSize();
         }
     }
 }
 
 void UIText::updateSize()
 {
-    size_ = context_.getTextRenderer().getTextSize(text_, font_path_, font_size_);
+    size_ = context_.getTextRenderer().getTextSize(text_, font_path_, font_size_, is_dirty_);
+}
+
+void UIText::ensureUpToDate() const
+{
+    if (!is_dirty_) {
+        return;
+    }
+
+    const_cast<UIText*>(this)->updateSize();
 }
 }

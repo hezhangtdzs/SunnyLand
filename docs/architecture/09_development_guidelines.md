@@ -481,3 +481,128 @@ void GameScene::rebindCommandMapper(game::component::PlayerComponent* player_com
 | `ClimbUpCommand` | 向上攀爬 | 在梯子上按 W 或 Up 键 |
 | `ClimbDownCommand` | 向下攀爬 | 在梯子上按 S 或 Down 键 |
 | `StopMoveCommand` | 停止移动 | 无移动输入时自动触发 |
+
+## 13. 使用脏标识模式（示例）
+
+本项目使用 **脏标识模式 (Dirty Flag Pattern)** 优化 UI 文本渲染性能。以下是使用指南：
+
+### 13.1 基本使用
+
+`UIText` 组件内部已集成脏标识机制，无需手动管理：
+
+```cpp
+// 创建文本控件
+auto score_text = std::make_unique<UIText>(
+    context_, 
+    "Score: 0", 
+    "assets/fonts/PixelOperator8.ttf", 
+    24
+);
+
+// 设置文本会自动标记脏状态
+score_text->setText("Score: 100");  // is_dirty_ = true
+
+// 获取尺寸会自动刷新（如果脏）
+glm::vec2 size = score_text->getSize();  // 触发尺寸计算
+
+// 渲染后会自动清除脏标记
+score_text->render();  // 渲染并清除脏状态
+```
+
+### 13.2 与观察者模式结合
+
+脏标识模式与观察者模式结合，实现数据变化时自动更新：
+
+```cpp
+class ScoreDisplay : public UIText {
+public:
+    void onNotify(EventType event_type, const std::any& data) override {
+        if (event_type == EventType::SCORE_CHANGED) {
+            if (const int* score = std::any_cast<int>(&data)) {
+                setText("Score: " + std::to_string(*score));
+                // setText 内部自动设置 is_dirty_ = true
+            }
+        }
+    }
+};
+
+// 在 GameScene 中设置订阅
+void GameScene::initHUD() {
+    auto score_display = std::make_unique<ScoreDisplay>(...);
+    session_data_->addObserver(score_display.get());
+    // 当 SessionData 的分数变化时，ScoreDisplay 自动更新
+}
+```
+
+### 13.3 性能优化建议
+
+1. **避免频繁调用 setText()**
+   ```cpp
+   // 不推荐：每帧都设置相同文本
+   void update() {
+       score_text->setText("Score: " + std::to_string(score));  // 浪费性能
+   }
+   
+   // 推荐：只在数据变化时设置
+   void onScoreChanged(int new_score) {
+       if (new_score != current_score_) {
+           score_text->setText("Score: " + std::to_string(new_score));
+           current_score_ = new_score;
+       }
+   }
+   ```
+
+2. **批量更新**
+   ```cpp
+   // 如果有多个文本需要更新，先批量设置，最后统一渲染
+   void updateHUD() {
+       // 设置所有文本（标记脏状态）
+       score_text->setText(...);
+       health_text->setText(...);
+       level_text->setText(...);
+       
+       // 统一渲染（每个控件内部处理脏状态）
+       ui_manager->render();
+   }
+   ```
+
+3. **缓存尺寸计算结果**
+   ```cpp
+   // 如果需要在布局阶段多次使用尺寸
+   void layoutUI() {
+       // 第一次调用会计算尺寸
+       glm::vec2 size = text->getSize();
+       
+       // 后续调用直接返回缓存值（如果未标记脏）
+       float width = text->getSize().x;   // 使用缓存
+       float height = text->getSize().y;  // 使用缓存
+   }
+   ```
+
+### 13.4 底层 API 使用（高级）
+
+如果需要直接使用 `TextRenderer` 的脏标识功能：
+
+```cpp
+// 获取 TextRenderer
+auto& text_renderer = context_.getTextRenderer();
+
+// 绘制UI文本，手动控制脏状态
+bool is_dirty = has_text_changed_;  // 根据业务逻辑判断
+text_renderer.drawUIText(
+    text, font_path, font_size, position, color, is_dirty
+);
+
+// 获取文本尺寸，手动控制脏状态
+glm::vec2 size = text_renderer.getTextSize(
+    text, font_path, font_size, is_dirty
+);
+```
+
+### 13.5 脏标识模式最佳实践
+
+1. **延迟计算**: Setter 只标记脏状态，不立即执行昂贵操作
+2. **访问时刷新**: 在获取值或渲染时检查并刷新脏状态
+3. **自动传播**: UI层将脏状态传递给渲染层，避免重复检查
+4. **及时清除**: 渲染后立即清除脏标记，避免不必要的重复计算
+5. **生命周期管理**: 注意缓存对象的生命周期，确保在系统关闭前正确释放
