@@ -11,6 +11,7 @@
 #include "../../../engine/component/collider_component.h"
 #include "../../../engine/component/audio_component.h"
 #include "../../../engine/physics/physics_engine.h"
+#include "../../../engine/audio/audio_locator.h"
 #include <cmath>
 #include <glm/glm.hpp>
 
@@ -54,7 +55,7 @@ std::unique_ptr<PlayerState> WalkState::moveRight(engine::core::Context& context
 std::unique_ptr<PlayerState> WalkState::jump(engine::core::Context& context) {
 	// 播放跳跃音效
 	if (auto* audio = player_component_->getOwner()->getComponent<engine::component::AudioComponent>()) {
-		audio->playSound("jump", context);
+		audio->playSound("jump");
 	}
 	return std::make_unique<JumpState>(player_component_);
 }

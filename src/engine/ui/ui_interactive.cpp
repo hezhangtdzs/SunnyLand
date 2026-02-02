@@ -5,6 +5,7 @@
 #include "../resource/resource_manager.h"
 #include "../input/input_manager.h"
 #include "./state/ui_state.h"
+#include "../audio/audio_locator.h"
 
 namespace engine::ui {
 
@@ -184,7 +185,7 @@ std::string UIInteractive::getSound(const std::string& name) const {
 void UIInteractive::playSound(const std::string& name) {
     auto sound_file = getSound(name);
     if (!sound_file.empty()) {
-        context_.getAudioPlayer().playSound(sound_file);
+        engine::audio::AudioLocator::get().playSound(sound_file);
     }
 }
 

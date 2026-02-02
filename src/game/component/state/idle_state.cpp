@@ -40,7 +40,7 @@ std::unique_ptr<PlayerState> IdleState::jump(engine::core::Context& context)
 {
 	// 播放跳跃音效
 	if (auto* audio = player_component_->getOwner()->getComponent<engine::component::AudioComponent>()) {
-		audio->playSound("jump", context);
+		audio->playSound("jump");
 	}
 	return std::make_unique<JumpState>(player_component_);
 }

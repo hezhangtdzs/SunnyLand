@@ -5,7 +5,6 @@
 #include "../render/camera.h"
 #include "../resource/resource_manager.h"
 #include "../physics/physics_engine.h"
-#include "../audio/audio_player.h"
 #include "game_state.h"
 
 #include<spdlog/spdlog.h>
@@ -15,7 +14,6 @@ engine::core::Context::Context(engine::render::Renderer& renderer,
 							   engine::resource::ResourceManager& resource_manager, 
 							   engine::input::InputManager& input_manager,
 							   engine::physics::PhysicsEngine& physics_engine,
-							   engine::audio::AudioPlayer& audio_player,
 							   engine::core::GameState& game_state)
 							 : renderer_(renderer),
 							   text_renderer_(text_renderer),
@@ -23,7 +21,6 @@ engine::core::Context::Context(engine::render::Renderer& renderer,
 							   resource_manager_(resource_manager),
 							   input_manager_(input_manager),
 							   physics_engine_(physics_engine),
-							   audio_player_(audio_player),
 							   game_state_(game_state)
 {
 	spdlog::info("Context created.");

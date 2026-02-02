@@ -17,6 +17,7 @@
 #include "../../game/component/player_component.h"
 #include "../../engine/component/animation_component.h"
 #include "../../engine/component/audio_component.h"
+#include "../../engine/audio/audio_locator.h" // Added AudioLocator
 #include "../../engine/resource/resource_manager.h"
 #include "../data/session_data.h"
 #include "../object/game_object_builder.h"
@@ -61,7 +62,7 @@ namespace game::scene {
     void GameScene::init() {
         if (initLevel() && initPlayer() && initEnemyAndItem()) {
             context_.getGameState().setState(engine::core::GameStateType::Playing);
-            context_.getResourceManager().playMusic("assets/audio/platformer_level03_loop.ogg");
+            engine::audio::AudioLocator::get().playMusic("assets/audio/platformer_level03_loop.ogg");
             spdlog::info("GameScene 初始化完成。");
         }
 
@@ -649,7 +650,7 @@ void GameScene::updateHUD() {
         if (is_falling && is_above) {
             spdlog::info("玩家 {} 踩踏了敌人 {}", player->getTag(), enemy->getTag());
 			if (auto* player_audio = player->getComponent<engine::component::AudioComponent>()) {
-				player_audio->playSound("stomp", context_);
+				player_audio->playSound("stomp");
 			}
 			if (auto* audio = enemy->getComponent<engine::component::AudioComponent>()) {
 				audio->playSoundNearCamera("cry", context_, 420.0f);
@@ -694,7 +695,7 @@ void GameScene::updateHUD() {
     void GameScene::PlayerVSItemCollision(engine::object::GameObject* player, engine::object::GameObject* item)
     {
 		if (auto* audio = item->getComponent<engine::component::AudioComponent>()) {
-			audio->playSound("pickup", context_);
+			audio->playSound("pickup");
 		}
         if (item->getName() == "fruit" || item->getTag() == "fruit") {
             auto* health = player->getComponent<engine::component::HealthComponent>();

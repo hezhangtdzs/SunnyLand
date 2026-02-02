@@ -66,7 +66,8 @@ namespace engine::component {
 		 * @param id 音频标识符
 		 * @param context 游戏核心上下文
 		 */
-		void playSound(const std::string& id, engine::core::Context& context);
+		void playSound(const std::string& id);
+
 
 		/**
 		 * @brief 空间化播放：按 id 播放，并以 `listener_world_pos` 作为监听者位置，
@@ -78,10 +79,10 @@ namespace engine::component {
 		 */
 		void playSoundSpatial(
 			const std::string& id,
-			engine::core::Context& context,
 			const glm::vec2& listener_world_pos,
 			float max_distance
 		);
+
 
 		/**
 		 * @brief 便捷方法：以相机中心作为监听者位置进行空间化播放。
@@ -96,6 +97,7 @@ namespace engine::component {
 		 * @param file_path 音频文件路径
 		 * @param context 游戏核心上下文
 		 */
-		void playDirect(const std::string& file_path, engine::core::Context& context);
+		void playDirect(const std::string& file_path);
+
 	};
 }

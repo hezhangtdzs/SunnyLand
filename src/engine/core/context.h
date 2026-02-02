@@ -29,10 +29,7 @@ namespace engine::physics
 {
 	class PhysicsEngine;
 }
-namespace engine::audio
-{
-	class AudioPlayer;
-}
+
 namespace engine::core
 {
 	/**
@@ -57,8 +54,6 @@ namespace engine::core
 		engine::input::InputManager& input_manager_;
 		/// 物理引擎引用
 		engine::physics::PhysicsEngine& physics_engine_;
-		/// 音频播放器引用
-		engine::audio::AudioPlayer& audio_player_;
 		/// 游戏状态引用
 		engine::core::GameState& game_state_;
 	public:
@@ -70,7 +65,7 @@ namespace engine::core
 		 * @param resource_manager 资源管理器引用
 		 * @param input_manager 输入管理器引用
 		 * @param physics_engine 物理引擎引用
-		 * @param audio_player 音频播放器引用
+		 * @param game_state 游戏状态引用
 		 */
 		Context(engine::render::Renderer& renderer,
 				engine::render::TextRenderer& text_renderer,
@@ -78,7 +73,6 @@ namespace engine::core
 				engine::resource::ResourceManager& resource_manager,
 				engine::input::InputManager& input_manager,
 				engine::physics::PhysicsEngine& physics_engine,
-				engine::audio::AudioPlayer& audio_player,
 				engine::core::GameState& game_state);
 			
 
@@ -140,15 +134,6 @@ namespace engine::core
 		engine::physics::PhysicsEngine& getPhysicsEngine()
 		{
 			return physics_engine_;
-		}
-		
-		/**
-		 * @brief 获取音频播放器引用。
-		 * @return engine::audio::AudioPlayer& 音频播放器引用
-		 */
-		engine::audio::AudioPlayer& getAudioPlayer()
-		{
-			return audio_player_;
 		}
 		
 		/**

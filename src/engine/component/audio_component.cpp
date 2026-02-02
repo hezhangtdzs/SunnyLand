@@ -1,8 +1,9 @@
 #include "audio_component.h"
 #include "../core/context.h"
-#include "../audio/audio_player.h"
+#include "../audio/audio_locator.h" // Added AudioLocator
 #include "transform_component.h"
 #include "../object/game_object.h"
+#include "../render/camera.h" // Added Camera for playSoundNearCamera
 #include <spdlog/spdlog.h>
 #include <SDL3/SDL.h>
 #include <cmath>
@@ -32,29 +33,27 @@ namespace engine::component {
 	 * @brief 按 id 播放已注册的音频
 	 * 
 	 * @param id 音频标识符
-	 * @param context 游戏核心上下文
 	 * @details 从内部映射表查找音频路径并播放，应用播放间隔节流
 	 */
-	void AudioComponent::playSound(const std::string& id, engine::core::Context& context) {
+	void AudioComponent::playSound(const std::string& id) {
 		auto it = action_sounds_.find(id);
 		if (it == action_sounds_.end()) {
 			spdlog::debug("音效ID '{}' 没有关联的资源路径。", id);
 			return;
 		}
 		if (!canPlay(id, min_interval_ms_, last_play_ticks_)) return;
-		context.getAudioPlayer().playSound(it->second);
+		engine::audio::AudioLocator::get().playSound(it->second);
 	}
 
 	/**
 	 * @brief 空间化播放音频
 	 * 
 	 * @param id 音频标识符
-	 * @param context 游戏核心上下文
 	 * @param listener_world_pos 监听者世界位置
 	 * @param max_distance 最大有效距离
 	 * @details 计算音频发射器与监听者的距离，应用空间化效果并播放
 	 */
-	void AudioComponent::playSoundSpatial(const std::string& id, engine::core::Context& context, const glm::vec2& listener_world_pos, float max_distance) {
+	void AudioComponent::playSoundSpatial(const std::string& id, const glm::vec2& listener_world_pos, float max_distance) {
 		auto it = action_sounds_.find(id);
 		if (it == action_sounds_.end()) {
 			spdlog::debug("音效ID '{}' 没有关联的资源路径。", id);
@@ -83,7 +82,7 @@ namespace engine::component {
 			dist,
 			max_distance
 		);
-		context.getAudioPlayer().playSoundSpatial(it->second, emitter, listener_world_pos, max_distance);
+		engine::audio::AudioLocator::get().playSoundSpatial(it->second, emitter, listener_world_pos, max_distance);
 	}
 
 	/**
@@ -96,17 +95,16 @@ namespace engine::component {
 	 */
 	void AudioComponent::playSoundNearCamera(const std::string& id, engine::core::Context& context, float max_distance) {
 		const auto listener = context.getCamera().getPosition() + context.getCamera().getViewportSize() * 0.5f;
-		playSoundSpatial(id, context, listener, max_distance);
+		playSoundSpatial(id, listener, max_distance);
 	}
 
 	/**
 	 * @brief 直接播放指定文件路径的音频
 	 * 
 	 * @param file_path 音频文件路径
-	 * @param context 游戏核心上下文
 	 * @details 绕过内部映射表，直接根据文件路径播放音频
 	 */
-	void AudioComponent::playDirect(const std::string& file_path, engine::core::Context& context) {
-		context.getAudioPlayer().playSound(file_path);
+	void AudioComponent::playDirect(const std::string& file_path) {
+		engine::audio::AudioLocator::get().playSound(file_path);
 	}
 }

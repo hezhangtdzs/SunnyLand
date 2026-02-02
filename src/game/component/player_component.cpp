@@ -42,14 +42,14 @@ bool PlayerComponent::takeDamage(int damage, engine::core::Context& context) {
 					health_component_->getMaxHealth());
 				setState(std::make_unique<state::HurtState>(this));
 				if (audio_component_) {
-					audio_component_->playSound("hurt", context);
+					audio_component_->playSound("hurt");
 				}
 			}
 			else {
 				spdlog::info("PlayerComponent 死亡。");
 				is_dead_ = true;
 				if (audio_component_) {
-					audio_component_->playSound("dead", context);
+					audio_component_->playSound("dead");
 				}
 				setState(std::make_unique<state::DeadState>(this));
 			}

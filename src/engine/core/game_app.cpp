@@ -19,6 +19,8 @@
 #include "../../game/data/session_data.h"
 #include "../physics/physics_engine.h"
 #include "../audio/audio_player.h"
+#include "../audio/audio_locator.h"
+
 
 /**
  * @brief 构造函数，默认初始化 GameApp。
@@ -173,7 +175,9 @@ void engine::core::GameApp::close()
 		SDL_DestroyWindow(window_);
 		window_ = nullptr;
 	}
+	engine::audio::AudioLocator::provide(nullptr);
 	scene_manager_->close();
+
 	resource_manager_.reset();
 	
 	SDL_Quit();
@@ -344,7 +348,6 @@ bool engine::core::GameApp::initContext()
 			*resource_manager_,
 			*input_manager_,
 			*physics_engine_,
-			*audio_player_,
 			*game_state_);
 	}
 	catch (const std::exception& e) {
@@ -363,6 +366,7 @@ bool engine::core::GameApp::initAudioPlayer()
 	try
 	{
 		audio_player_ = std::make_unique<engine::audio::AudioPlayer>(*resource_manager_, *config_);
+		engine::audio::AudioLocator::provide(audio_player_.get());
 	}
 	catch (const std::exception& e)
 	{

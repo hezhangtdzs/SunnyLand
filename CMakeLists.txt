@@ -45,6 +45,7 @@ add_executable(${TARGET}
     src/engine/resource/audio_manager.cpp
     src/engine/resource/font_manager.cpp
 
+    src/engine/audio/audio_locator.cpp
     src/engine/audio/audio_player.cpp
 
     src/engine/render/animation.cpp
