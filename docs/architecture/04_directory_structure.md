@@ -9,8 +9,11 @@ src/
 │   │   ├── time.h/cpp
 │   │   ├── config.h/cpp
 │   │   └── game_state.h/cpp
-│   ├── audio/          # 音频播放封装 (AudioPlayer)
-│   │   ├── audio_player.h/cpp
+│   ├── audio/          # 音频播放封装 (AudioPlayer, AudioLocator, IAudioPlayer, LogAudioPlayer)
+│   │   ├── iaudio_player.h       # 音频播放器接口 + NullAudioPlayer 空对象实现
+│   │   ├── audio_player.h/cpp    # 具体音频播放器实现
+│   │   ├── audio_locator.h/cpp   # 服务定位器，提供全局音频访问
+│   │   ├── log_audio_player.h/cpp # 日志装饰器，为音频播放添加日志记录
 │   ├── scene/          # 场景管理 (Scene, SceneManager, LevelLoader)
 │   │   ├── scene.h/cpp
 │   │   ├── scene_manager.h/cpp

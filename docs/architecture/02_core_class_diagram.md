@@ -169,6 +169,14 @@ classDiagram
         +clearAudio()
     }
 
+    class IAudioPlayer {
+        <<interface>>
+        +playSound(path)* int
+        +playMusic(path, loops)* bool
+        +setMasterVolume(volume)* void
+        +getMasterVolume()* float
+    }
+
     class AudioPlayer {
         -resource_manager_ : ResourceManager&
         -master_volume_ : float
@@ -182,6 +190,27 @@ classDiagram
         +setMasterVolume(v)
         +setSoundVolume(v)
         +setMusicVolume(v)
+    }
+
+    class LogAudioPlayer {
+        -wrapped_player_ : unique_ptr~IAudioPlayer~
+        +LogAudioPlayer(unique_ptr~IAudioPlayer~)
+        +playSound(path) int
+        +playMusic(path, loops) bool
+        +setMasterVolume(volume) void
+    }
+
+    class NullAudioPlayer {
+        +playSound(path) int
+        +playMusic(path, loops) bool
+        +setMasterVolume(volume) void
+    }
+
+    class AudioLocator {
+        -service_ : IAudioPlayer*
+        -null_service_ : NullAudioPlayer
+        +get() IAudioPlayer&$
+        +provide(service) void$
     }
 
     class AudioComponent {
@@ -404,6 +433,19 @@ classDiagram
         +Update()
         +isActionPressed(string)
         +isActionDown(string)
+    }
+
+    class Observer {
+        <<interface>>
+        +onNotify(EventType, data)* void
+    }
+
+    class Subject {
+        <<interface>>
+        -observers_ : vector~Observer*~
+        +addObserver(Observer*) void
+        +removeObserver(Observer*) void
+        +notifyObservers(EventType, data) void
     }
 
     class AIComponent {
@@ -700,8 +742,21 @@ classDiagram
 
     ResourceManager "1" *-- "1" AudioManager
     Context "1" o-- "1" AudioPlayer
+    IAudioPlayer <|-- AudioPlayer
+    IAudioPlayer <|-- LogAudioPlayer
+    IAudioPlayer <|-- NullAudioPlayer
+    LogAudioPlayer o--> IAudioPlayer : 包装
+    AudioLocator --> IAudioPlayer : 返回
+    AudioLocator --> NullAudioPlayer : 默认服务
     AudioPlayer ..> ResourceManager : 通过资源系统获取音频
-    AudioComponent ..> Context : 通过 Context 调用 AudioPlayer
+    AudioComponent ..> AudioLocator : 使用服务定位器
+    AudioPlayer ..> IAudioPlayer : 实现接口
+    Observer <|-- UIText
+    Observer <|-- GameScene
+    Observer <|-- SessionData
+    Subject <|-- SessionData
+    Subject <|-- HealthComponent
+    Subject --> Observer
     SessionData ..> JSON : 使用JSON库进行序列化/反序列化
     GameState ..> GameStateType : 使用状态枚举
     ObjectBuilder <|-- GameObjectBuilder : 继承

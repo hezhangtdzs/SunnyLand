@@ -1,6 +1,194 @@
 # 关键机制说明 (Key Mechanisms) - 第四部分
 
-## 20. 关卡切换逻辑与数据存储 (Level Switching & Data Storage)
+## 20. 观察者模式实现细节 (Observer Pattern Implementation)
+
+本项目使用 **观察者模式** 解耦数据变化与 UI 更新，实现响应式的数据驱动 UI 系统。
+
+### 架构组成
+
+```mermaid
+classDiagram
+    class Observer {
+        <<interface>>
+        +onNotify(EventType, data)* void
+    }
+
+    class Subject {
+        <<interface>>
+        -observers_ : vector~Observer*~
+        +addObserver(Observer*) void
+        +removeObserver(Observer*) void
+        +notifyObservers(EventType, data) void
+    }
+
+    class SessionData {
+        -current_score_: int
+        -current_health_: int
+        +addScore(int) void
+        +setCurrentHealth(int) void
+    }
+
+    class HealthComponent {
+        -currentHealth_: int
+        -maxHealth_: int
+        +takeDamage(int) bool
+        +heal(int) void
+    }
+
+    class UIText {
+        -text_: string
+        +setText(string) void
+        +onNotify(EventType, data) void
+    }
+
+    class GameScene {
+        -health_icons_: vector~UIImage*~
+        +onNotify(EventType, data) void
+        +updateHealthUI() void
+    }
+
+    Observer <|-- UIText
+    Observer <|-- GameScene
+    Observer <|-- SessionData
+    Subject <|-- SessionData
+    Subject <|-- HealthComponent
+    Subject --> Observer
+```
+
+### 事件类型定义
+
+```cpp
+enum class EventType {
+    HEALTH_CHANGED,      // 生命值变化
+    MAX_HEALTH_CHANGED,  // 最大生命值变化
+    SCORE_CHANGED,       // 分数变化
+};
+```
+
+### 核心接口
+
+**Observer 接口** (`src/engine/interface/observer.h`):
+```cpp
+class Observer {
+public:
+    virtual ~Observer() = default;
+    virtual void onNotify(EventType event_type, const std::any& data) = 0;
+};
+```
+
+**Subject 接口** (`src/engine/interface/subject.h`):
+```cpp
+class Subject {
+    std::vector<Observer*> observers_;
+public:
+    virtual ~Subject();
+    void addObserver(Observer* observer);
+    void removeObserver(Observer* observer);
+    void clearObservers();
+protected:
+    void notifyObservers(const EventType& event, const std::any& data);
+};
+```
+
+### 使用示例
+
+**数据变化通知**:
+```cpp
+// SessionData 中通知分数变化
+void SessionData::addScore(int score) {
+    if (score > 0) {
+        current_score_ += score;
+        // 通知观察者
+        notifyObservers(EventType::SCORE_CHANGED, current_score_);
+    }
+}
+
+// HealthComponent 中通知生命值变化
+bool HealthComponent::takeDamage(int damage) {
+    if (damage <= 0 || !isAlive() || isInvincible()) return false;
+    currentHealth_ -= damage;
+    // 通知观察者
+    notifyObservers(EventType::HEALTH_CHANGED, currentHealth_);
+    return true;
+}
+```
+
+**UI 响应更新**:
+```cpp
+// UIText 实现 Observer 接口
+class UIText : public UIElement, public Observer {
+    void onNotify(EventType event_type, const std::any& data) override {
+        if (event_type == EventType::SCORE_CHANGED) {
+            if (const int* score = std::any_cast<int>(&data)) {
+                setText("Score: " + std::to_string(*score));
+                updateSize();
+            }
+        }
+    }
+};
+
+// GameScene 实现 Observer 接口
+class GameScene : public Scene, public Observer {
+    void onNotify(EventType event_type, const std::any& data) override {
+        switch (event_type) {
+            case EventType::HEALTH_CHANGED:
+                updateHealthUI();
+                break;
+            case EventType::MAX_HEALTH_CHANGED:
+                initHealthIcons();
+                break;
+        }
+    }
+};
+```
+
+**建立订阅关系**:
+```cpp
+void GameScene::initHUD() {
+    // 创建 UI 元素
+    auto score_text = std::make_unique<UIText>(...);
+    score_text_ = score_text.get();
+    
+    // 订阅 SessionData 的分数变化
+    if (session_data_ && score_text_) {
+        session_data_->addObserver(score_text_);
+    }
+}
+
+void GameScene::initPlayer() {
+    // 订阅 HealthComponent 的生命值变化
+    if (auto* health_component = player_->getComponent<HealthComponent>()) {
+        health_component->addObserver(this);
+    }
+}
+```
+
+**生命周期管理**:
+```cpp
+void GameScene::clean() {
+    // 取消订阅，避免悬垂指针
+    if (session_data_ && score_text_) {
+        session_data_->removeObserver(score_text_);
+    }
+    if (player_) {
+        if (auto* health_component = player_->getComponent<HealthComponent>()) {
+            health_component->removeObserver(this);
+        }
+    }
+    Scene::clean();
+}
+```
+
+### 设计优势
+
+1. **松耦合**: 数据源不需要知道 UI 的存在
+2. **自动更新**: 数据变化自动触发 UI 更新
+3. **一对多**: 一个数据源可以被多个观察者订阅
+4. **可扩展**: 新增观察者只需实现 Observer 接口
+
+---
+
+## 21. 关卡切换逻辑与数据存储 (Level Switching & Data Storage)
 
 ### 关卡切换 (Level Switching)
 - **触发器设计**: 在 Tiled 中放置 `tag` 为 `next_level` 的对象。

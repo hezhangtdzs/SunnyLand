@@ -1,284 +1,196 @@
 # SunnyLand
 
-一个基于 C++23 开发的 2D 平台跳跃游戏，采用现代化的组件化架构设计。
+一个基于 **C++23** 开发的 2D 平台跳跃游戏，采用现代化的组件化架构设计。
 
 ![Preview](assets/textures/Preview.png)
 
-## 项目概述
+## 项目简介
 
-SunnyLand 是一个横版平台跳跃游戏，玩家控制角色在多个关卡中冒险，收集道具、击败敌人、到达终点。项目采用组件化架构，支持数据驱动的关卡设计和灵活的游戏对象构建。
+SunnyLand 是一款横版平台跳跃游戏，玩家控制角色在精美的像素风关卡中冒险，收集道具、击败敌人、到达终点。项目采用现代化的游戏引擎架构，展示了多种经典设计模式在实战中的应用。
 
-### 核心特性
+## 核心亮点
 
-- **组件化架构** - 通过组件组合实现游戏对象功能，灵活且易于扩展
-- **数据驱动** - 使用 JSON 配置文件和 Tiled 地图编辑器进行关卡设计
-- **生成器模式** - 使用 Builder 模式构建复杂的游戏对象
-- **命令模式** - 解耦输入处理与动作执行，支持控制切换
-- **状态模式** - 管理玩家行为和 UI 交互状态
-- **策略模式** - 实现可替换的 AI 行为
-- **资源共享** - 智能指针管理资源生命周期，避免重复加载
+### 架构设计
+
+| 设计模式 | 应用场景 | 优势 |
+|:---|:---|:---|
+| **组件化架构** | 游戏对象系统 | 灵活组合，避免深层继承 |
+| **生成器模式** | 复杂对象构建 | 分步构建，链式配置 |
+| **命令模式** | 输入处理解耦 | 支持控制切换，易于扩展 |
+| **状态模式** | 玩家行为管理 | 清晰的状态转换逻辑 |
+| **观察者模式** | 数据驱动 UI | 自动响应数据变化 |
+| **服务定位器** | 音频系统访问 | 全局访问，解耦依赖 |
+| **装饰器模式** | 音频功能扩展 | 运行时动态组合功能 |
+
+### 技术特色
+
+- **C++23 现代特性** - 使用结构化绑定、概念、constexpr if 等现代语法
+- **数据驱动设计** - JSON 配置 + Tiled 地图编辑器，无需修改代码即可调整游戏
+- **智能内存管理** - 全程使用 `std::unique_ptr`/`std::shared_ptr`，杜绝内存泄漏
+- **跨平台支持** - Windows/Linux/macOS 全平台兼容
 
 ## 技术栈
 
-| 技术 | 版本 | 用途 |
-|:---|:---|:---|
-| **C++** | C++23 | 主开发语言 |
-| **CMake** | 3.10+ | 构建系统 |
-| **SDL3** | 最新版 | 窗口管理、输入、渲染 |
-| **GLM** | - | 数学库（向量、矩阵） |
-| **nlohmann/json** | - | JSON 解析 |
-| **spdlog** | - | 日志系统 |
-| **Tiled** | - | 地图编辑器 |
-| **SDL3_mixer** | - | 音频解码与混音 |
-| **SDL3_ttf** | - | 字体渲染 |
+| 技术 | 用途 |
+|:---|:---|
+| **C++23** | 主开发语言 |
+| **CMake 3.10+** | 构建系统 |
+| **SDL3** | 窗口、输入、渲染 |
+| **SDL3_image/mixer/ttf** | 图像、音频、字体 |
+| **GLM** | 数学库 |
+| **nlohmann/json** | JSON 解析 |
+| **spdlog** | 日志系统 |
 
 ## 快速开始
 
 ### 环境要求
 
-- Windows 10/11
-- Visual Studio 2022 或更高版本
-- CMake 3.10 或更高版本
-- vcpkg（用于管理依赖库）
+- Windows 10/11 / Linux / macOS
+- Visual Studio 2022 / GCC 11+ / Clang 14+
+- CMake 3.10+
+- vcpkg
 
-### 安装依赖
-
-使用 vcpkg 安装所需的库：
+### 一键构建
 
 ```bash
+# 安装依赖 (vcpkg)
 vcpkg install sdl3 sdl3-image sdl3-mixer sdl3-ttf glm nlohmann-json spdlog
-```
 
-### 构建项目
-
-```bash
-# 克隆项目
+# 克隆并构建
 git clone <repository-url>
 cd SunnyLand
-
-# 创建构建目录
-mkdir build
-cd build
-
-# 配置 CMake
+mkdir build && cd build
 cmake .. -DCMAKE_TOOLCHAIN_FILE=[vcpkg-root]/scripts/buildsystems/vcpkg.cmake
-
-# 构建
 cmake --build .
-```
 
-### 运行游戏
-
-构建完成后，运行生成的可执行文件：
-
-```bash
+# 运行
 ./SunnyLand-Windows.exe
 ```
 
+详细构建指南请参阅 [docs/architecture/10_build_guide.md](docs/architecture/10_build_guide.md)
+
 ## 游戏操作
 
-| 操作 | 键盘 | 说明 |
+| 操作 | 按键 | 说明 |
 |:---|:---|:---|
-| 移动 | A / D 或 ← / → | 左右移动 |
-| 跳跃 | Space / J | 跳跃 |
-| 下蹲 | S 或 ↓ | 下蹲/下滑 |
-| 攻击 | K 或 鼠标左键 | 攻击 |
-| 切换玩家 | Tab | 切换控制角色 |
+| 移动 | `A` `D` / `←` `→` | 左右移动 |
+| 跳跃 | `Space` / `J` | 跳跃（支持土狼时间） |
+| 攻击 | `K` / 鼠标左键 | 攻击敌人 |
+| 攀爬 | `W` `S` / `↑` `↓` | 在梯子上攀爬 |
+| 暂停 | `P` / `Esc` | 打开暂停菜单 |
 
 ## 项目结构
 
 ```
 SunnyLand/
-├── assets/                 # 游戏资源
-│   ├── audio/             # 音频文件
-│   ├── fonts/             # 字体文件
-│   ├── maps/              # Tiled 地图文件
-│   ├── textures/          # 图片资源
-│   └── config.json        # 游戏配置文件
-├── docs/                  # 项目文档
-│   └── architecture/      # 架构文档
-├── src/                   # 源代码
-│   ├── engine/            # 游戏引擎
-│   │   ├── audio/         # 音频系统
-│   │   ├── component/     # 组件系统
-│   │   ├── core/          # 核心模块
-│   │   ├── input/         # 输入管理
-│   │   ├── object/        # 游戏对象
-│   │   ├── physics/       # 物理引擎
-│   │   ├── render/        # 渲染系统
-│   │   ├── resource/      # 资源管理
-│   │   ├── scene/         # 场景管理
-│   │   └── ui/            # UI 系统
-│   └── game/              # 游戏逻辑
-│       ├── component/     # 游戏组件
-│       ├── data/          # 数据管理
-│       ├── object/        # 游戏对象构建器
-│       └── scene/         # 游戏场景
-├── build/                 # 构建输出
-├── CMakeLists.txt         # CMake 配置
-└── README.md              # 项目说明
+├── assets/              # 游戏资源（音频、纹理、地图、配置）
+├── docs/                # 架构文档
+│   └── architecture/    # 详细设计文档
+├── src/
+│   ├── engine/          # 游戏引擎核心
+│   │   ├── audio/       # 音频系统（服务定位器 + 装饰器模式）
+│   │   ├── component/   # 组件系统
+│   │   ├── core/        # 核心模块（Context、GameApp）
+│   │   ├── physics/     # 物理引擎（碰撞检测、斜坡物理）
+│   │   ├── render/      # 渲染系统
+│   │   ├── scene/       # 场景管理（栈式管理）
+│   │   └── ui/          # UI 系统（状态机驱动）
+│   └── game/            # 游戏业务逻辑
+│       ├── component/   # 玩家组件、AI 组件
+│       ├── data/        # 会话数据（观察者模式）
+│       └── scene/       # 游戏场景实现
+└── CMakeLists.txt
 ```
 
 ## 架构文档
 
-详细的架构文档位于 `docs/architecture/` 目录：
-
-| 文档 | 内容 |
+| 文档 | 内容概述 |
 |:---|:---|
-| [01_project_overview.md](docs/architecture/01_project_overview.md) | 项目概述和设计模式 |
-| [02_core_class_diagram.md](docs/architecture/02_core_class_diagram.md) | 核心类图和关系 |
-| [03_main_loop_sequence.md](docs/architecture/03_main_loop_sequence.md) | 主循环时序图 |
-| [04_directory_structure.md](docs/architecture/04_directory_structure.md) | 目录结构说明 |
-| [05_key_mechanisms_part1.md](docs/architecture/05_key_mechanisms_part1.md) | 核心机制（一）对象构建 |
-| [06_key_mechanisms_part2.md](docs/architecture/06_key_mechanisms_part2.md) | 核心机制（二）组件系统 |
-| [07_key_mechanisms_part3.md](docs/architecture/07_key_mechanisms_part3.md) | 核心机制（三）物理与碰撞 |
-| [08_key_mechanisms_part4.md](docs/architecture/08_key_mechanisms_part4.md) | 核心机制（四）场景与数据 |
-| [09_development_guidelines.md](docs/architecture/09_development_guidelines.md) | 开发规范与指南 |
+| [01_project_overview.md](docs/architecture/01_project_overview.md) | 项目概述与 9 种设计模式详解 |
+| [02_core_class_diagram.md](docs/architecture/02_core_class_diagram.md) | 完整类图与关系说明 |
+| [03_main_loop_sequence.md](docs/architecture/03_main_loop_sequence.md) | 游戏主循环时序图 |
+| [04_directory_structure.md](docs/architecture/04_directory_structure.md) | 目录结构详细说明 |
+| [05-08_key_mechanisms_part1-4.md](docs/architecture/05_key_mechanisms_part1.md) | 核心机制详解（4 部分） |
+| [09_development_guidelines.md](docs/architecture/09_development_guidelines.md) | 开发规范与最佳实践 |
+| [10_build_guide.md](docs/architecture/10_build_guide.md) | 完整构建指南 |
+| [11_api_reference.md](docs/architecture/11_api_reference.md) | 核心 API 快速参考 |
 
-## 核心机制
+## 核心代码示例
 
-### 1. 组件系统
-
-游戏对象通过挂载组件实现功能：
+### 组件系统使用
 
 ```cpp
-auto player = std::make_unique<GameObject>();
-player->addComponent<TransformComponent>(position);
-player->addComponent<SpriteComponent>(texture);
-player->addComponent<PhysicsComponent>();
-player->addComponent<PlayerComponent>();
+// 创建玩家对象
+auto player = std::make_unique<GameObject>("player", "hero");
+player->addComponent<TransformComponent>(glm::vec2(100, 200));
+player->addComponent<SpriteComponent>("player_texture");
+player->addComponent<PhysicsComponent>(&physics_engine);
+player->addComponent<PlayerComponent>();  // 状态机驱动
+scene->safeAddGameObject(std::move(player));
 ```
 
-### 2. 生成器模式
-
-使用 Builder 模式构建复杂游戏对象：
+### 命令模式实现输入
 
 ```cpp
-GameObjectBuilder builder(level_loader, context);
-auto enemy = builder
-    .configure(&object_json, &tile_json, tile_info)
-    .setEnemyType("eagle")
-    .build()
-    .getGameObject();
-```
+// 绑定命令
+command_mapper_->bind("jump", 
+    std::make_unique<JumpCommand>(player_component_));
 
-### 3. 命令模式
-
-使用命令模式解耦输入处理与动作执行：
-
-```cpp
-// 初始化命令映射器
-command_mapper_->bind("move_left", 
-    std::make_unique<MoveLeftCommand>(player_component_));
-
-// 在输入处理中执行命令
-if (input_manager.isActionDown("move_left")) {
-    command_mapper_->execute("move_left", context_);
-}
-
-// 双人模式切换
-void GameScene::switchPlayer() {
-    // 切换控制目标
-    current_controlled_player_ = (current_controlled_player_ == player_) 
-        ? player2 : player_;
-    
-    // 重新绑定命令到新玩家
-    rebindCommandMapper(new_player_component);
+// 输入处理
+if (input.isActionPressed("jump")) {
+    command_mapper_->execute("jump", context_);
 }
 ```
 
-### 4. 状态管理
-
-玩家状态使用状态模式管理：
+### 观察者模式实现数据驱动 UI
 
 ```cpp
-// 状态转换示例
-void WalkState::handleInput(PlayerComponent& player, const InputManager& input) {
-    if (!input.isKeyPressed(SDL_SCANCODE_A) && !input.isKeyPressed(SDL_SCANCODE_D)) {
-        player.changeState(std::make_unique<IdleState>());
+// SessionData 通知数据变化
+void addScore(int score) {
+    current_score_ += score;
+    notifyObservers(EventType::SCORE_CHANGED, current_score_);
+}
+
+// UI 自动更新
+void onNotify(EventType type, const std::any& data) override {
+    if (type == EventType::SCORE_CHANGED) {
+        setText("Score: " + std::to_string(std::any_cast<int>(data)));
     }
 }
 ```
 
-## 配置说明
+## 游戏特性
 
-游戏配置存储在 `assets/config.json` 中：
-
-```json
-{
-    "audio": {
-        "master_volume": 0.5,
-        "music_volume": 0.5,
-        "sound_volume": 0.5
-    },
-    "graphics": {
-        "vsync": true
-    },
-    "input_mappings": {
-        "jump": ["J", "Space"],
-        "attack": ["K", "MouseLeft"]
-    }
-}
-```
+- **流畅的物理系统** - 支持重力、斜坡、梯子、碰撞检测
+- **智能敌人 AI** - 巡逻、跳跃、上下飞行多种行为模式
+- **完整的 UI 系统** - 主菜单、暂停菜单、HUD、结束画面
+- **存档系统** - 自动保存进度，支持手动存档
+- **计分系统** - 收集物品、击败敌人获得分数
+- **多关卡支持** - 数据驱动关卡切换
 
 ## 开发规范
 
-### 命名规范
-
-- **类名**: `PascalCase` (如 `GameObject`, `PhysicsComponent`)
-- **函数名**: `camelCase` (如 `update()`, `render()`)
-- **变量名**: `camelCase` (如 `position`, `velocity`)
-- **私有成员**: 前缀 `m_` (如 `m_position`, `m_velocity`)
-- **宏/常量**: `UPPER_SNAKE_CASE`
-
-### 代码风格
-
-- 使用 C++23 现代特性（auto、智能指针、结构化绑定）
-- 优先使用 RAII 和智能指针管理内存
-- 大型对象使用 `const reference` 传递
-- 使用 `std::move` 优化性能
-
-### 文档注释
-
-使用 Doxygen 风格注释：
-
-```cpp
-/**
- * @brief 更新游戏对象状态
- * @param dt 帧间隔时间（秒）
- */
-void update(float dt);
-```
+- **命名**: 类名 `PascalCase`，函数/变量 `camelCase`，私有成员 `m_` 前缀
+- **内存**: 全程智能指针，禁止裸 `new/delete`
+- **文档**: Doxygen 风格注释
+- **标准**: C++23 现代特性优先
 
 ## 关卡设计
 
 使用 [Tiled Map Editor](https://www.mapeditor.org/) 创建关卡：
 
-1. 创建新地图，设置图块大小（推荐 18x18）
-2. 导入图块集（`assets/textures/Layers/tileset.png`）
-3. 设计关卡地图
-4. 添加对象层放置敌人、道具等
-5. 导出为 JSON 格式到 `assets/maps/`
-
-## 贡献指南
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/amazing-feature`)
-3. 提交更改 (`git commit -m 'Add some amazing feature'`)
-4. 推送到分支 (`git push origin feature/amazing-feature`)
-5. 创建 Pull Request
+1. 创建地图，设置图块大小（18x18）
+2. 导入图块集，设计关卡布局
+3. 添加对象层放置敌人、道具
+4. 导出 JSON 到 `assets/maps/`
 
 ## 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
+MIT License - 详见 [LICENSE](LICENSE) 文件
 
 ## 致谢
 
-- [SDL](https://www.libsdl.org/) - 跨平台开发库
-- [GLM](https://glm.g-truc.net/) - 数学库
-- [nlohmann/json](https://github.com/nlohmann/json) - JSON 库
-- [spdlog](https://github.com/gabime/spdlog) - 日志库
-- [Tiled](https://www.mapeditor.org/) - 地图编辑器
+- [SDL](https://www.libsdl.org/) · [GLM](https://glm.g-truc.net/) · [nlohmann/json](https://github.com/nlohmann/json) · [spdlog](https://github.com/gabime/spdlog) · [Tiled](https://www.mapeditor.org/)
 
 ---
 

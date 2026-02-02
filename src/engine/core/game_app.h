@@ -31,7 +31,7 @@ namespace engine::physics
 }
 namespace engine::audio
 {
-    class AudioPlayer;
+    class IAudioPlayer;
 }
 namespace engine::core {
     class Time;
@@ -79,7 +79,7 @@ namespace engine::core {
         /// 物理引擎
         std::unique_ptr<engine::physics::PhysicsEngine> physics_engine_;
         /// 音频播放器
-        std::unique_ptr<engine::audio::AudioPlayer> audio_player_;
+        std::unique_ptr<engine::audio::IAudioPlayer> audio_player_;
         /// 游戏状态
         std::unique_ptr<GameState> game_state_;
         /// 初始化回调函数

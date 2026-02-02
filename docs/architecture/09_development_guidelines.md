@@ -606,3 +606,658 @@ glm::vec2 size = text_renderer.getTextSize(
 3. **自动传播**: UI层将脏状态传递给渲染层，避免重复检查
 4. **及时清除**: 渲染后立即清除脏标记，避免不必要的重复计算
 5. **生命周期管理**: 注意缓存对象的生命周期，确保在系统关闭前正确释放
+
+## 14. 使用服务定位器模式（示例）
+
+本项目在音频系统中使用 **服务定位器模式 (Service Locator Pattern)** 作为依赖注入的补充方案。以下是使用指南：
+
+### 14.1 基本使用
+
+音频系统通过 `AudioLocator` 提供全局访问：
+
+```cpp
+#include "engine/audio/audio_locator.h"
+
+// 播放音效
+engine::audio::AudioLocator::get().playSound("assets/audio/jump.wav");
+
+// 播放背景音乐
+engine::audio::AudioLocator::get().playMusic("assets/audio/background.ogg");
+
+// 停止音乐
+engine::audio::AudioLocator::get().stopMusic();
+
+// 设置音量
+engine::audio::AudioLocator::get().setMasterVolume(0.8f);
+engine::audio::AudioLocator::get().setSoundVolume(0.5f);
+engine::audio::AudioLocator::get().setMusicVolume(0.7f);
+```
+
+### 14.2 在组件中使用
+
+```cpp
+// audio_component.h
+#pragma once
+#include "component.h"
+#include <string>
+#include <unordered_map>
+
+namespace engine::component {
+
+class AudioComponent : public Component {
+private:
+    std::unordered_map<std::string, std::string> action_sounds_;
+
+public:
+    void registerSound(const std::string& action, const std::string& file_path) {
+        action_sounds_[action] = file_path;
+    }
+    
+    void play(const std::string& action) {
+        auto it = action_sounds_.find(action);
+        if (it != action_sounds_.end()) {
+            // 通过服务定位器播放音效
+            engine::audio::AudioLocator::get().playSound(it->second);
+        }
+    }
+    
+    void playSpatial(const std::string& action, 
+                     const glm::vec2& emitter_pos,
+                     const glm::vec2& listener_pos,
+                     float max_distance) {
+        auto it = action_sounds_.find(action);
+        if (it != action_sounds_.end()) {
+            engine::audio::AudioLocator::get().playSoundSpatial(
+                it->second, emitter_pos, listener_pos, max_distance);
+        }
+    }
+};
+
+} // namespace engine::component
+```
+
+**使用示例**:
+
+```cpp
+// 创建音频组件
+auto audio_component = std::make_unique<AudioComponent>();
+audio_component->registerSound("jump", "assets/audio/jump.wav");
+audio_component->registerSound("attack", "assets/audio/attack.wav");
+audio_component->registerSound("hurt", "assets/audio/hurt.wav");
+
+// 在玩家跳跃时播放音效
+void PlayerComponent::jump() {
+    if (auto* audio = owner_->getComponent<AudioComponent>()) {
+        audio->play("jump");
+    }
+}
+```
+
+### 14.3 在UI中使用
+
+```cpp
+// 创建带音效的按钮
+auto button = std::make_unique<UIButton>(
+    context_,
+    "assets/textures/button_normal.png",
+    "assets/textures/button_hover.png",
+    "assets/textures/button_pressed.png",
+    glm::vec2(100.0f, 100.0f),
+    glm::vec2(200.0f, 50.0f),
+    [this]() { this->startGame(); }
+);
+
+// 设置按钮点击音效
+button->setSoundFile("assets/audio/button_click.wav");
+```
+
+**UIInteractive 实现**:
+
+```cpp
+void UIInteractive::handleClick() {
+    // 播放点击音效
+    if (!sound_file_.empty()) {
+        engine::audio::AudioLocator::get().playSound(sound_file_);
+    }
+    
+    // 执行点击回调
+    if (on_click_) {
+        on_click_();
+    }
+}
+```
+
+### 14.4 在场景中使用
+
+```cpp
+class GameScene : public Scene {
+public:
+    void enter() override {
+        // 进入场景时播放背景音乐
+        engine::audio::AudioLocator::get().playMusic(
+            "assets/audio/level_music.ogg", -1);  // -1 表示循环播放
+    }
+    
+    void exit() override {
+        // 离开场景时停止音乐
+        engine::audio::AudioLocator::get().stopMusic();
+    }
+    
+    void onPlayerScore(int points) {
+        // 播放得分音效
+        engine::audio::AudioLocator::get().playSound("assets/audio/score.wav");
+    }
+};
+```
+
+### 14.5 3D空间化音效
+
+```cpp
+// 获取玩家位置（听众位置）
+glm::vec2 listener_pos = player_->getComponent<TransformComponent>()->getPosition();
+
+// 获取敌人位置（发射器位置）
+for (auto* enemy : enemies_) {
+    glm::vec2 emitter_pos = enemy->getComponent<TransformComponent>()->getPosition();
+    
+    // 播放空间化音效，最大距离为 500 像素
+    if (auto* audio = enemy->getComponent<AudioComponent>()) {
+        audio->playSpatial("roar", emitter_pos, listener_pos, 500.0f);
+    }
+}
+```
+
+### 14.6 服务定位器 vs 依赖注入
+
+#### 何时使用服务定位器？
+
+```cpp
+// ✅ 适合使用服务定位器：需要全局访问，调用点分散
+class AudioComponent : public Component {
+    void play(const std::string& action) {
+        // 音频播放可能发生在任何地方
+        engine::audio::AudioLocator::get().playSound(path);
+    }
+};
+
+// ✅ 适合使用服务定位器：工具类，不需要显式依赖声明
+class UIInteractive : public UIElement {
+    void handleClick() {
+        // UI 元素播放音效是可选功能
+        if (!sound_file_.empty()) {
+            engine::audio::AudioLocator::get().playSound(sound_file_);
+        }
+    }
+};
+```
+
+#### 何时使用依赖注入？
+
+```cpp
+// ✅ 适合使用依赖注入：核心依赖，生命周期重要
+class SpriteComponent : public Component {
+public:
+    explicit SpriteComponent(ResourceManager& resource_manager)
+        : resource_manager_(resource_manager) {}
+    
+private:
+    ResourceManager& resource_manager_;  // 核心依赖
+};
+
+// ✅ 适合使用依赖注入：需要 Mock 进行单元测试
+class PhysicsComponent : public Component {
+public:
+    explicit PhysicsComponent(PhysicsEngine& physics_engine)
+        : physics_engine_(physics_engine) {}
+    
+private:
+    PhysicsEngine& physics_engine_;  // 需要 Mock 测试
+};
+```
+
+### 14.7 最佳实践
+
+1. **优先使用依赖注入**
+   ```cpp
+   // 推荐：核心系统使用依赖注入
+   class RenderSystem {
+   public:
+       explicit RenderSystem(ResourceManager& rm) : resource_manager_(rm) {}
+   };
+   
+   // 仅在必要时使用服务定位器
+   class AudioComponent {
+       void play() {
+           engine::audio::AudioLocator::get().playSound(path);
+       }
+   };
+   ```
+
+2. **处理服务未初始化的情况**
+   ```cpp
+   // 不需要检查，NullAudioPlayer 会静默处理
+   void AudioComponent::play(const std::string& action) {
+       auto it = action_sounds_.find(action);
+       if (it != action_sounds_.end()) {
+           // 即使 AudioLocator 未注册服务，也不会崩溃
+           engine::audio::AudioLocator::get().playSound(it->second);
+       }
+   }
+   ```
+
+3. **音量控制策略**
+   ```cpp
+   // 在设置菜单中调整音量
+   void SettingsScene::onMasterVolumeChanged(float volume) {
+       engine::audio::AudioLocator::get().setMasterVolume(volume);
+   }
+   
+   void SettingsScene::onMusicVolumeChanged(float volume) {
+       engine::audio::AudioLocator::get().setMusicVolume(volume);
+   }
+   
+   void SettingsScene::onSoundVolumeChanged(float volume) {
+       engine::audio::AudioLocator::get().setSoundVolume(volume);
+   }
+   ```
+
+4. **音效节流**
+   ```cpp
+   // 避免同一音效过于频繁播放
+   void AudioComponent::play(const std::string& action) {
+       auto now = SDL_GetTicks();
+       auto it = last_play_time_.find(action);
+       if (it != last_play_time_.end() && 
+           now - it->second < min_interval_ms_) {
+           return;  // 跳过播放
+       }
+       
+       // 播放音效...
+       engine::audio::AudioLocator::get().playSound(path);
+       last_play_time_[action] = now;
+   }
+   ```
+
+5. **生命周期管理**
+   ```cpp
+   // GameApp 负责音频系统的初始化和关闭
+   bool GameApp::init() {
+       // 1. 创建音频播放器（依赖注入）
+       audio_player_ = std::make_unique<AudioPlayer>(
+           *resource_manager_, *config_);
+       
+       // 2. 注册到服务定位器
+       engine::audio::AudioLocator::provide(audio_player_.get());
+       
+       return true;
+   }
+   
+   void GameApp::clean() {
+       // 1. 注销服务（恢复为空服务）
+       engine::audio::AudioLocator::provide(nullptr);
+       
+       // 2. 销毁音频播放器
+       audio_player_.reset();
+   }
+   ```
+
+### 14.8 注意事项
+
+1. **不要滥用服务定位器**: 仅在真正需要全局访问的场景使用
+2. **注意线程安全**: 本项目单线程访问无需考虑，多线程需要添加同步
+3. **服务生命周期**: 确保服务在使用期间有效，避免悬垂指针
+4. **测试考虑**: 测试时可以替换为 Mock 实现
+   ```cpp
+   // 测试代码
+   class MockAudioPlayer : public IAudioPlayer {
+       // Mock 实现...
+   };
+   
+   MockAudioPlayer mock_audio;
+   AudioLocator::provide(&mock_audio);
+   // 执行测试...
+   AudioLocator::provide(nullptr);  // 恢复
+   ```
+
+## 15. 使用装饰器模式（示例）
+
+本项目在音频系统中使用 **装饰器模式 (Decorator Pattern)** 动态扩展功能。以下是使用指南：
+
+### 15.1 基本使用
+
+装饰器模式允许在不修改原有代码的情况下为对象添加新功能：
+
+```cpp
+#include "engine/audio/audio_player.h"
+#include "engine/audio/log_audio_player.h"
+
+// 1. 创建具体组件
+auto audio_player = std::make_unique<engine::audio::AudioPlayer>(
+    resource_manager, config);
+
+// 2. 用装饰器包装（添加日志功能）
+auto logging_player = std::make_unique<engine::audio::LogAudioPlayer>(
+    std::move(audio_player));
+
+// 3. 使用（透明，与原始对象使用方式相同）
+logging_player->playSound("assets/audio/jump.wav");
+// 输出: [info] LogAudioPlayer: 播放音效 assets/audio/jump.wav
+
+logging_player->playMusic("assets/audio/background.ogg");
+// 输出: [info] LogAudioPlayer: 播放音乐 assets/audio/background.ogg, 循环次数 -1
+```
+
+### 15.2 在项目中启用日志装饰器
+
+通过编译宏 `ENABLE_AUDIO_LOG` 控制日志功能的启用：
+
+```cpp
+// game_app.cpp
+bool GameApp::initAudioPlayer() {
+    try {
+        // 创建音频播放器
+        audio_player_ = std::make_unique<engine::audio::AudioPlayer>(
+            *resource_manager_, *config_);
+        
+#ifdef ENABLE_AUDIO_LOG
+        // 启用日志装饰器
+        audio_player_ = std::make_unique<engine::audio::LogAudioPlayer>(
+            std::move(audio_player_));
+        spdlog::info("音频日志功能已启用");
+#endif
+        
+        // 注册到服务定位器
+        engine::audio::AudioLocator::provide(audio_player_.get());
+        
+    } catch (const std::exception& e) {
+        spdlog::error("初始化音频播放器失败: {}", e.what());
+        return false;
+    }
+    return true;
+}
+```
+
+**CMake 配置**:
+
+```cmake
+# 启用音频日志
+option(ENABLE_AUDIO_LOG "Enable audio logging" ON)
+
+if(ENABLE_AUDIO_LOG)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_AUDIO_LOG)
+endif()
+```
+
+### 15.3 创建自定义装饰器
+
+你可以创建自己的装饰器来扩展音频功能：
+
+```cpp
+// stats_audio_player.h
+#pragma once
+#include "engine/audio/iaudio_player.h"
+#include <memory>
+#include <unordered_map>
+#include <string>
+
+namespace engine::audio {
+
+class StatsAudioPlayer : public IAudioPlayer {
+    std::unique_ptr<IAudioPlayer> wrapped_player_;
+    std::unordered_map<std::string, int> play_counts_;
+    int total_plays_ = 0;
+
+public:
+    explicit StatsAudioPlayer(std::unique_ptr<IAudioPlayer> wrapped_player)
+        : wrapped_player_(std::move(wrapped_player)) {}
+
+    int playSound(const std::string& path) override {
+        play_counts_[path]++;
+        total_plays_++;
+        return wrapped_player_->playSound(path);
+    }
+
+    int playSoundSpatial(const std::string& path, 
+                         const glm::vec2& emitter_world_pos,
+                         const glm::vec2& listener_world_pos, 
+                         float max_distance) override {
+        play_counts_[path]++;
+        total_plays_++;
+        return wrapped_player_->playSoundSpatial(path, emitter_world_pos, 
+                                                  listener_world_pos, max_distance);
+    }
+
+    bool playMusic(const std::string& path, int loops = -1) override {
+        return wrapped_player_->playMusic(path, loops);
+    }
+
+    // ... 其他方法委托给 wrapped_player_
+
+    void printStats() const {
+        spdlog::info("===== 音频播放统计 =====");
+        spdlog::info("总播放次数: {}", total_plays_);
+        for (const auto& [path, count] : play_counts_) {
+            spdlog::info("  {}: {} 次", path, count);
+        }
+    }
+
+    int getPlayCount(const std::string& path) const {
+        auto it = play_counts_.find(path);
+        return it != play_counts_.end() ? it->second : 0;
+    }
+
+    void resetStats() {
+        play_counts_.clear();
+        total_plays_ = 0;
+    }
+
+    // 委托方法...
+    void setMasterVolume(float volume) override {
+        wrapped_player_->setMasterVolume(volume);
+    }
+    
+    float getMasterVolume() const override {
+        return wrapped_player_->getMasterVolume();
+    }
+    
+    // ... 其他委托方法
+};
+
+} // namespace engine::audio
+```
+
+**使用示例**:
+
+```cpp
+// 创建统计装饰器
+auto audio_player = std::make_unique<AudioPlayer>(resource_manager, config);
+auto stats_player = std::make_unique<StatsAudioPlayer>(std::move(audio_player));
+
+// 播放音效
+stats_player->playSound("assets/audio/jump.wav");
+stats_player->playSound("assets/audio/jump.wav");
+stats_player->playSound("assets/audio/coin.wav");
+
+// 查看统计
+stats_player->printStats();
+// 输出:
+// ===== 音频播放统计 =====
+// 总播放次数: 3
+//   assets/audio/jump.wav: 2 次
+//   assets/audio/coin.wav: 1 次
+```
+
+### 15.4 嵌套装饰器
+
+可以嵌套多个装饰器，每个添加不同功能：
+
+```cpp
+// 嵌套装饰器示例
+auto audio_player = std::make_unique<AudioPlayer>(resource_manager, config);
+
+// 第一层：添加日志
+auto logging_player = std::make_unique<LogAudioPlayer>(
+    std::move(audio_player));
+
+// 第二层：添加统计
+auto stats_player = std::make_unique<StatsAudioPlayer>(
+    std::move(logging_player));
+
+// 第三层：添加音量限制（示例）
+// auto limit_player = std::make_unique<VolumeLimitAudioPlayer>(
+//     std::move(stats_player), 0.8f);
+
+// 使用（所有功能都会生效）
+stats_player->playSound("assets/audio/jump.wav");
+// 1. LogAudioPlayer 记录日志
+// 2. StatsAudioPlayer 更新统计
+// 3. AudioPlayer 实际播放
+```
+
+### 15.5 装饰器 vs 继承
+
+#### 为什么不使用继承？
+
+```cpp
+// ❌ 继承方式：不够灵活
+class LoggingAudioPlayer : public AudioPlayer {
+public:
+    int playSound(const std::string& path) override {
+        spdlog::info("播放: {}", path);
+        return AudioPlayer::playSound(path);
+    }
+};
+
+// 问题：
+// 1. 如果要给另一个音频类添加日志，需要再写一个子类
+// 2. 无法动态组合功能（日志+统计+缓存）
+// 3. 紧耦合，依赖具体类而非接口
+```
+
+#### 装饰器方式的优势：
+
+```cpp
+// ✅ 装饰器方式：灵活、可组合
+auto player = std::make_unique<AudioPlayer>(...);
+auto logging = std::make_unique<LogAudioPlayer>(std::move(player));
+auto stats = std::make_unique<StatsAudioPlayer>(std::move(logging));
+
+// 优势：
+// 1. 可以给任何 IAudioPlayer 实现添加功能
+// 2. 可以动态组合多个功能
+// 3. 松耦合，依赖接口而非具体类
+```
+
+### 15.6 最佳实践
+
+1. **保持接口一致性**: 装饰器必须完全实现组件接口，不能遗漏任何方法
+   ```cpp
+   // ✅ 正确：实现所有接口方法
+   class MyDecorator : public IAudioPlayer {
+       void setMasterVolume(float volume) override {
+           // 先执行额外逻辑
+           logVolumeChange(volume);
+           // 再调用被装饰对象
+           wrapped_->setMasterVolume(volume);
+       }
+       // ... 实现所有其他方法
+   };
+   ```
+
+2. **优先使用组合**: 通过持有被装饰对象实现，而非继承
+   ```cpp
+   // ✅ 正确：使用组合
+   class Decorator : public IAudioPlayer {
+       std::unique_ptr<IAudioPlayer> wrapped_;  // 组合
+   };
+   
+   // ❌ 避免：使用继承（紧耦合）
+   class Decorator : public AudioPlayer {  // 继承具体类
+   };
+   ```
+
+3. **避免过度装饰**: 装饰器层次过多会增加调试难度
+   ```cpp
+   // ❌ 避免：过多嵌套
+   auto p1 = std::make_unique<A>(std::move(base));
+   auto p2 = std::make_unique<B>(std::move(p1));
+   auto p3 = std::make_unique<C>(std::move(p2));
+   auto p4 = std::make_unique<D>(std::move(p3));  // 难以调试
+   
+   // ✅ 推荐：适度使用，必要时合并功能
+   auto player = std::make_unique<CombinedDecorator>(std::move(base));
+   ```
+
+4. **文档化装饰器**: 明确说明装饰器添加的功能
+   ```cpp
+   /**
+    * @brief 日志音频装饰器
+    * @details 为音频播放器添加日志记录功能，记录所有播放操作
+    * @note 通过 ENABLE_AUDIO_LOG 宏控制启用
+    */
+   class LogAudioPlayer : public IAudioPlayer {
+       // ...
+   };
+   ```
+
+5. **考虑性能**: 装饰器会增加一层间接调用
+   ```cpp
+   // 性能敏感场景考虑直接调用
+   // 装饰器适合：日志、统计、调试
+   // 装饰器不适合：高频调用的性能关键路径
+   ```
+
+6. **正确处理方法返回值**
+   ```cpp
+   int playSound(const std::string& path) override {
+       logPlay(path);
+       int result = wrapped_->playSound(path);  // 获取返回值
+       logResult(result);  // 可以记录返回值
+       return result;  // 正确返回
+   }
+   ```
+
+### 15.7 常见应用场景
+
+1. **日志记录**: `LogAudioPlayer` - 记录所有音频操作
+2. **性能统计**: `StatsAudioPlayer` - 统计播放次数和时长
+3. **参数校验**: `ValidationAudioPlayer` - 校验音量、路径等参数
+4. **缓存**: `CachedAudioPlayer` - 缓存音频数据
+5. **音量限制**: `VolumeLimitAudioPlayer` - 限制最大音量
+6. **调试**: `DebugAudioPlayer` - 添加断点、可视化等调试功能
+
+### 15.8 与项目其他模式的配合
+
+```mermaid
+flowchart TB
+    subgraph 音频系统
+        AP[AudioPlayer<br/>具体组件]
+        LAP[LogAudioPlayer<br/>装饰器]
+        SAP[StatsAudioPlayer<br/>装饰器]
+        NAP[NullAudioPlayer<br/>空对象]
+    end
+    
+    subgraph 访问方式
+        AL[AudioLocator<br/>服务定位器]
+    end
+    
+    subgraph 使用方
+        AC[AudioComponent]
+        UI[UIInteractive]
+        GS[GameScene]
+    end
+    
+    AP --> LAP --> SAP
+    SAP --> AL
+    NAP --> AL
+    AL --> AC
+    AL --> UI
+    AL --> GS
+```
+
+- **装饰器模式**: 扩展音频功能（日志、统计）
+- **空对象模式**: 提供默认实现
+- **服务定位器模式**: 提供全局访问
+- **组件模式**: 在游戏中使用音频
+
+这种组合实现了灵活、可扩展的音频系统架构。

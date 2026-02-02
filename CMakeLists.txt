@@ -15,6 +15,8 @@ else()
     add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
+
+
 # 设置编译输出目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_SOURCE_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_SOURCE_DIR})
@@ -29,6 +31,8 @@ find_package(SDL3_ttf REQUIRED)
 find_package(glm REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(spdlog REQUIRED)
+
+option(ENABLE_AUDIO_LOG "启用音频日志" OFF)
 
 # 添加可执行文件
 add_executable(${TARGET}
@@ -47,6 +51,7 @@ add_executable(${TARGET}
 
     src/engine/audio/audio_locator.cpp
     src/engine/audio/audio_player.cpp
+    src/engine/audio/log_audio_player.cpp
 
     src/engine/render/animation.cpp
     src/engine/render/camera.cpp
@@ -116,7 +121,13 @@ add_executable(${TARGET}
     src/game/component/behaviors/jump_behavior.cpp
     src/game/component/behaviors/patrol_behavior.cpp
     src/game/component/behaviors/up_down_behavior.cpp
-)
+ "src/engine/audio/log_audio_player.h")
+
+# 检查开关的状态
+if(ENABLE_AUDIO_LOG)
+    # 如果开关为 ON，就为我们的目标（可执行文件）添加一个编译定义
+    target_compile_definitions(${TARGET} PRIVATE ENABLE_AUDIO_LOG)
+endif()
 
 # 链接库
 target_link_libraries(${TARGET}
